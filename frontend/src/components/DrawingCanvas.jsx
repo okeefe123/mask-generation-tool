@@ -74,7 +74,8 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.lineWidth = brushSize;
-    ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)';
+    ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 1.0)';
+    // Use 'destination-out' for eraser to completely remove pixels
     ctx.globalCompositeOperation = drawingMode === 'draw' ? 'source-over' : 'destination-out';
   }, [brushSize, drawingMode]);
 
@@ -189,7 +190,7 @@ const DrawingCanvas = ({ onCanvasReady }) => {
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
         ctx.lineWidth = stroke.brushSize;
-        ctx.strokeStyle = stroke.mode === 'draw' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)';
+        ctx.strokeStyle = stroke.mode === 'draw' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 1.0)';
         ctx.globalCompositeOperation = stroke.mode === 'draw' ? 'source-over' : 'destination-out';
         
         // Draw the stroke
@@ -279,10 +280,13 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     // Ensure context is properly set up
     setupContext(ctx);
     
-    // Set a consistent opacity - no layering effect
-    // This ensures the opacity is consistent regardless of how many times we draw in the same area
+    // Set appropriate opacity based on mode
     if (drawingMode === 'draw') {
-      ctx.globalAlpha = 0.7; // Same opacity as we use in strokeStyle for visual consistency
+      // For drawing: semi-transparent for visual feedback
+      ctx.globalAlpha = 0.7;
+    } else {
+      // For erasing: full opacity to completely remove pixels
+      ctx.globalAlpha = 1.0;
     }
     
     ctx.beginPath();
