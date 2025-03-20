@@ -169,8 +169,12 @@ const ToolPanel = ({ canvasElement }) => {
       
       // Convert to blob asynchronously
       const blob = await new Promise(resolve => {
-        tempCanvas.toBlob(resolve, fileType);
+        // Use the matched file type for the blob
+        tempCanvas.toBlob(resolve, fileType, fileType === 'image/jpeg' ? 0.95 : undefined);
       });
+      
+      // Log format information for debugging
+      console.log(`Creating mask in ${fileType === 'image/jpeg' ? 'JPEG' : 'PNG'} format to match original: ${maskFileName}`);
       
       // Create file with the generated name and matching type
       const file = new File([blob], maskFileName, { type: fileType });
