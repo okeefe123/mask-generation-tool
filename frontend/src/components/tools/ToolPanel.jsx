@@ -129,15 +129,41 @@ const ToolPanel = ({ canvasElement }) => {
       // Put the modified image data back
       tempCtx.putImageData(imageData, 0, 0);
       
-      // Determine file type and name
-      let fileType = 'image/png';
-      let maskFileName;
+      // Determine file type and name based on original file
+      let fileType, maskFileName;
       
       if (originalFileName) {
         const lastDotIndex = originalFileName.lastIndexOf('.');
         const baseName = lastDotIndex > 0 ? originalFileName.substring(0, lastDotIndex) : originalFileName;
-        maskFileName = `${baseName}.png`;
+        const originalExtension = lastDotIndex > 0 ? originalFileName.substring(lastDotIndex) : '';
+        
+        // Detect file type from original file extension
+        const isPNG = originalExtension.toLowerCase() === '.png';
+        const isJPG = originalExtension.toLowerCase() === '.jpg' || originalExtension.toLowerCase() === '.jpeg';
+        
+        if (isPNG) {
+          // Keep PNG format with exact same extension
+          fileType = 'image/png';
+          maskFileName = `${baseName}${originalExtension}`;
+        } else if (isJPG) {
+          // Use JPEG format with matching case sensitivity
+          fileType = 'image/jpeg';
+          // Preserve .jpg or .jpeg distinction
+          if (originalExtension.toLowerCase() === '.jpg') {
+            // Match case sensitivity
+            maskFileName = `${baseName}${originalExtension.toLowerCase() === originalExtension ? '.jpg' : '.JPG'}`;
+          } else {
+            // For .jpeg
+            maskFileName = `${baseName}${originalExtension.toLowerCase() === originalExtension ? '.jpeg' : '.JPEG'}`;
+          }
+        } else {
+          // Default to PNG for any other format
+          fileType = 'image/png';
+          maskFileName = `${baseName}.png`;
+        }
       } else {
+        // Default when no original filename
+        fileType = 'image/png';
         maskFileName = `mask_${imageId}.png`;
       }
       
