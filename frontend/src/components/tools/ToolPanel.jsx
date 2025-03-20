@@ -1,4 +1,4 @@
-import { VStack, Box, Heading, Divider } from '@chakra-ui/react';
+import { VStack, Box, Heading, Divider, Badge } from '@chakra-ui/react';
 import ImageUploader from '../ImageUploader';
 import DrawingTools from './DrawingTools';
 import ActionButtons from './ActionButtons';
@@ -8,23 +8,59 @@ const ToolPanel = () => {
   const { displayImage } = useAppContext();
   
   return (
-    <VStack spacing={4} align="stretch" p={4}>
+    <VStack
+      spacing={6}
+      align="stretch"
+      p={5}
+      bg="white"
+      boxShadow="sm"
+      borderRadius="md"
+      height="100%"
+    >
       <Box>
-        <Heading size="md" mb={2}>Image</Heading>
+        <Heading
+          size="md"
+          mb={3}
+          color="gray.700"
+          fontWeight="semibold"
+          display="flex"
+          alignItems="center"
+        >
+          Image
+          {!displayImage && (
+            <Badge ml={2} colorScheme="orange" variant="subtle">
+              Required
+            </Badge>
+          )}
+        </Heading>
         <ImageUploader />
       </Box>
       
       {displayImage && (
         <>
-          <Divider />
+          <Divider borderColor="gray.200" />
           <Box>
-            <Heading size="md" mb={2}>Drawing Tools</Heading>
+            <Heading
+              size="md"
+              mb={3}
+              color="gray.700"
+              fontWeight="semibold"
+            >
+              Drawing Tools
+            </Heading>
             <DrawingTools />
           </Box>
           
-          <Divider />
+          <Divider borderColor="gray.200" />
           <Box>
-            <Heading size="md" mb={2}>Actions</Heading>
+            <Heading
+              size="md"
+              mb={3}
+              color="gray.700"
+              fontWeight="semibold"
+            >
+              Actions
+            </Heading>
             <ActionButtons />
           </Box>
         </>

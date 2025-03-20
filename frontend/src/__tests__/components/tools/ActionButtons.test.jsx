@@ -1,83 +1,109 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ChakraProvider } from '@chakra-ui/react';
 import ActionButtons from '../../../components/tools/ActionButtons';
+import { useCanvasContext } from '../../../contexts/CanvasContext';
+import { useUIContext } from '../../../contexts/UIContext';
+import { useAppContext } from '../../../contexts/AppContext';
 
-// Mock the useCanvasContext and useUIContext hooks
-jest.mock('../../../contexts/AppContexts', () => ({
-  useCanvasContext: jest.fn(),
-  useUIContext: jest.fn()
+// Mock the context hooks
+vi.mock('../../../contexts/CanvasContext', () => ({
+  useCanvasContext: vi.fn()
 }));
 
-// Mock the Chakra UI toast
-jest.mock('@chakra-ui/react', () => {
-  const originalModule = jest.requireActual('@chakra-ui/react');
-  return {
-    ...originalModule,
-    useToast: () => jest.fn()
-  };
-});
+vi.mock('../../../contexts/UIContext', () => ({
+  useUIContext: vi.fn()
+}));
+
+vi.mock('../../../contexts/AppContext', () => ({
+  useAppContext: vi.fn()
+}));
 
 describe('ActionButtons Component', () => {
   // Set up default mock values
-  const mockClearCanvas = jest.fn();
-  const mockSaveMask = jest.fn();
-  const mockSetStatusMessage = jest.fn();
-  const mockSetIsLoading = jest.fn();
+  const mockClearCanvas = vi.fn();
+  const mockHandleUndo = vi.fn();
+  const mockSetStatusMessage = vi.fn();
+  const mockSetIsLoading = vi.fn();
+  const mockSetError = vi.fn();
+  const mockDisplayImage = { id: '123', url: 'test-image.jpg' };
   
   beforeEach(() => {
     // Reset mocks before each test
-    mockClearCanvas.mockReset();
-    mockSaveMask.mockReset();
-    mockSetStatusMessage.mockReset();
-    mockSetIsLoading.mockReset();
+    vi.resetAllMocks();
     
     // Set up the canvas context mock
-    const mockUseCanvasContext = require('../../../contexts/AppContexts').useCanvasContext;
-    mockUseCanvasContext.mockReturnValue({
+    useCanvasContext.mockReturnValue({
       clearCanvas: mockClearCanvas,
-      saveMask: mockSaveMask
+      handleUndo: mockHandleUndo
     });
     
     // Set up the UI context mock
-    const mockUseUIContext = require('../../../contexts/AppContexts').useUIContext;
-    mockUseUIContext.mockReturnValue({
+    useUIContext.mockReturnValue({
       setStatusMessage: mockSetStatusMessage,
-      setIsLoading: mockSetIsLoading
+      setIsLoading: mockSetIsLoading,
+      setError: mockSetError
+    });
+    
+    // Set up the App context mock
+    useAppContext.mockReturnValue({
+      displayImage: mockDisplayImage
     });
   });
   
-  test('renders save and clear buttons', () => {
+  it('renders action buttons with correct styling', () => {
     render(
       <ChakraProvider>
         <ActionButtons />
       </ChakraProvider>
     );
     
-    // Check that both buttons are rendered
-    expect(screen.getByRole('button', { name: /save mask/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /clear canvas/i })).toBeInTheDocument();
+    // Check that all buttons are rendered with appropriate text
+    const saveButton = screen.getByRole('button', { name: /save mask/i });
+    const undoButton = screen.getByRole('button', { name: /undo/i });
+    const clearButton = screen.getByRole('button', { name: /clear/i });
+    
+    expect(saveButton).toBeInTheDocument();
+    expect(undoButton).toBeInTheDocument();
+    expect(clearButton).toBeInTheDocument();
+    
+    // Visual checks would be done in a separate UI test, but we can check for existence
+    expect(saveButton).toHaveClass('chakra-button');
+    expect(undoButton).toHaveClass('chakra-button');
+    expect(clearButton).toHaveClass('chakra-button');
   });
   
-  test('calls clearCanvas when Clear Canvas button is clicked', () => {
+  it('calls clearCanvas when Clear button is clicked', () => {
     render(
       <ChakraProvider>
         <ActionButtons />
       </ChakraProvider>
     );
     
-    // Click the clear canvas button
-    fireEvent.click(screen.getByRole('button', { name: /clear canvas/i }));
+    // Click the clear button
+    fireEvent.click(screen.getByRole('button', { name: /clear/i }));
     
     // Check that clearCanvas was called
     expect(mockClearCanvas).toHaveBeenCalled();
-    
-    // Check that status message was updated
-    expect(mockSetStatusMessage).toHaveBeenCalledWith('Canvas cleared');
   });
   
-  test('calls saveMask when Save Mask button is clicked', async () => {
-    // Set up saveMask to resolve successfully
-    mockSaveMask.mockResolvedValue();
+  it('calls handleUndo when Undo button is clicked', () => {
+    render(
+      <ChakraProvider>
+        <ActionButtons />
+      </ChakraProvider>
+    );
+    
+    // Click the undo button
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+    
+    // Check that handleUndo was called
+    expect(mockHandleUndo).toHaveBeenCalled();
+  });
+  
+  it('starts saving process when Save Mask button is clicked', async () => {
+    // Use fake timers to control the timeout
+    vi.useFakeTimers();
     
     render(
       <ChakraProvider>
@@ -88,46 +114,18 @@ describe('ActionButtons Component', () => {
     // Click the save mask button
     fireEvent.click(screen.getByRole('button', { name: /save mask/i }));
     
-    // Check that isLoading was set to true
+    // Initial state checks
     expect(mockSetIsLoading).toHaveBeenCalledWith(true);
-    
-    // Check that status message was updated
     expect(mockSetStatusMessage).toHaveBeenCalledWith('Saving mask...');
     
-    // Wait for the async operation to complete
-    await waitFor(() => {
-      // Check that saveMask was called
-      expect(mockSaveMask).toHaveBeenCalled();
-      
-      // Check that isLoading was set back to false
-      expect(mockSetIsLoading).toHaveBeenCalledWith(false);
-      
-      // Check that status message was updated
-      expect(mockSetStatusMessage).toHaveBeenCalledWith('Mask saved successfully');
-    });
-  });
-  
-  test('handles errors when saving mask fails', async () => {
-    // Set up saveMask to reject with an error
-    const error = new Error('Failed to save mask');
-    mockSaveMask.mockRejectedValue(error);
+    // Fast forward time to complete the timeout
+    await vi.runAllTimersAsync();
     
-    render(
-      <ChakraProvider>
-        <ActionButtons />
-      </ChakraProvider>
-    );
+    // Check final state
+    expect(mockSetIsLoading).toHaveBeenCalledWith(false);
+    expect(mockSetStatusMessage).toHaveBeenCalledWith('Mask saved successfully');
     
-    // Click the save mask button
-    fireEvent.click(screen.getByRole('button', { name: /save mask/i }));
-    
-    // Wait for the async operation to complete
-    await waitFor(() => {
-      // Check that isLoading was set back to false
-      expect(mockSetIsLoading).toHaveBeenCalledWith(false);
-      
-      // Check that status message was updated with error
-      expect(mockSetStatusMessage).toHaveBeenCalledWith('Error saving mask');
-    });
+    // Restore real timers
+    vi.useRealTimers();
   });
 });
