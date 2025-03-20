@@ -49,7 +49,8 @@ const Toolbar = ({ canvasElement }) => {
     console.log("Toolbar dependencies:", {
       canvasElement,
       originalImage,
-      originalDimensions
+      originalDimensions,
+      brushSize // Add brushSize to logging
     });
     
     // Check if canvas is available and valid
@@ -84,6 +85,7 @@ const Toolbar = ({ canvasElement }) => {
   };
 
   const handleBrushSizeChange = (value) => {
+    console.log('Changing brush size from', brushSize, 'to', value);
     setBrushSize(value);
   };
 
@@ -269,24 +271,22 @@ const Toolbar = ({ canvasElement }) => {
       )}
       
       <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align="center" gap={4}>
-        <ButtonGroup isAttached variant="outline" size="md">
+        <Flex gap={4}>
           <Button
-            colorScheme={drawingMode === 'draw' ? 'blue' : 'gray'}
+            colorScheme="blue"
             onClick={() => handleDrawModeChange('draw')}
-            fontWeight={drawingMode === 'draw' ? 'bold' : 'normal'}
             isDisabled={!!canvasError}
           >
             Draw
           </Button>
           <Button
-            colorScheme={drawingMode === 'erase' ? 'red' : 'gray'}
-            onClick={() => handleDrawModeChange('erase')}
-            fontWeight={drawingMode === 'erase' ? 'bold' : 'normal'}
+            colorScheme="red"
+            onClick={() => canvasElement.undo()}
             isDisabled={!!canvasError}
           >
-            Erase
+            Undo
           </Button>
-        </ButtonGroup>
+        </Flex>
 
         <Flex align="center" width={{ base: '100%', md: '200px' }}>
           <Text fontSize="sm" mr={2} whiteSpace="nowrap">
