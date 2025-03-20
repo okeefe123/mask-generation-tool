@@ -211,6 +211,8 @@ const ToolPanel = ({ canvasElement }) => {
       boxShadow="sm"
       borderRadius="md"
       height="100%"
+      width="100%"
+      minWidth="250px"
     >
       <Box>
         <Heading

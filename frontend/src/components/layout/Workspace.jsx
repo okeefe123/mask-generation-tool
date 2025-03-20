@@ -12,12 +12,13 @@ const Workspace = ({ toolPanel, canvasArea }) => {
       direction={{ base: 'column', md: 'row' }}
     >
       {/* Tool Panel - collapsible on mobile */}
-      <Box 
-        w={{ base: '100%', md: '280px' }} 
+      <Box
+        w={{ base: '100%', md: '350px' }}
         h={{ base: displayImage ? '200px' : 'auto', md: '100%' }}
         borderRightWidth={{ base: 0, md: '1px' }}
         borderBottomWidth={{ base: displayImage ? '1px' : 0, md: 0 }}
         overflowY="auto"
+        overflowX="hidden"
       >
         {toolPanel}
       </Box>

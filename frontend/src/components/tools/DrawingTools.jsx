@@ -17,7 +17,9 @@ const DrawingTools = () => {
     drawingMode,
     setDrawingMode,
     brushSize,
-    setBrushSize
+    setBrushSize,
+    brushShape,
+    setBrushShape
   } = useUIContext();
 
   return (
@@ -51,13 +53,41 @@ const DrawingTools = () => {
       </Box>
       
       <Box borderRadius="md" p={2} bg="gray.50">
+        <Text fontWeight="medium" fontSize="sm" mb={2}>Brush Shape</Text>
+        <HStack spacing={2}>
+          <Tooltip label="Circle shape" placement="top">
+            <Button
+              colorScheme={brushShape === 'circle' ? 'brand' : 'gray'}
+              onClick={() => setBrushShape('circle')}
+              flex="1"
+              size="sm"
+              variant={brushShape === 'circle' ? 'solid' : 'outline'}
+            >
+              Circle
+            </Button>
+          </Tooltip>
+          <Tooltip label="Square shape" placement="top">
+            <Button
+              colorScheme={brushShape === 'square' ? 'brand' : 'gray'}
+              onClick={() => setBrushShape('square')}
+              flex="1"
+              size="sm"
+              variant={brushShape === 'square' ? 'solid' : 'outline'}
+            >
+              Square
+            </Button>
+          </Tooltip>
+        </HStack>
+      </Box>
+      
+      <Box borderRadius="md" p={2} bg="gray.50">
         <HStack spacing={1} align="center" mb={1}>
           <Text fontWeight="medium" fontSize="sm">
             Brush Size: {brushSize}px
           </Text>
           <Box
-            borderRadius="full"
-            bg={drawingMode === 'draw' ? 'black' : 'white'}
+            borderRadius={brushShape === 'circle' ? "full" : "0"}
+            bg={drawingMode === 'draw' ? 'white' : 'white'}
             border="1px solid"
             borderColor="gray.300"
             width={`${Math.min(brushSize, 20)}px`}
@@ -69,7 +99,7 @@ const DrawingTools = () => {
         </HStack>
         <Slider
           min={1}
-          max={50}
+          max={100}
           step={1}
           value={brushSize}
           onChange={setBrushSize}

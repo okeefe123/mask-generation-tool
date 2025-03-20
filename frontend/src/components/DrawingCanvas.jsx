@@ -21,6 +21,7 @@ const DrawingCanvas = ({ onCanvasReady }) => {
   const {
     drawingMode,
     brushSize,
+    brushShape,
     isLoading,
     setIsLoading,
   } = useUIContext();
@@ -71,13 +72,20 @@ const DrawingCanvas = ({ onCanvasReady }) => {
 
   // Function to set up canvas context with current drawing settings
   const setupContext = useCallback((ctx) => {
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
+    // Set line style based on brush shape
+    if (brushShape === 'circle') {
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+    } else {
+      ctx.lineJoin = 'miter';
+      ctx.lineCap = 'butt';
+    }
+    
     ctx.lineWidth = brushSize;
     ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 1.0)';
     // Use 'destination-out' for eraser to completely remove pixels
     ctx.globalCompositeOperation = drawingMode === 'draw' ? 'source-over' : 'destination-out';
-  }, [brushSize, drawingMode]);
+  }, [brushSize, drawingMode, brushShape]);
 
   // Find the image element in the parent
   useEffect(() => {
@@ -200,13 +208,32 @@ const DrawingCanvas = ({ onCanvasReady }) => {
           continue;
         }
         
+        // Determine shape - default to circle for backward compatibility
+        const shape = stroke.brushShape || 'circle';
+        
+        // Set line style based on brush shape
+        if (shape === 'circle') {
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+        } else {
+          ctx.lineJoin = 'miter';
+          ctx.lineCap = 'butt';
+        }
+        
         if (stroke.points.length === 1) {
           // Draw a dot for single clicks
-          ctx.beginPath();
-          ctx.arc(firstPoint.x, firstPoint.y, stroke.brushSize / 2, 0, Math.PI * 2);
-          ctx.fill();
+          if (shape === 'circle') {
+            ctx.beginPath();
+            ctx.arc(firstPoint.x, firstPoint.y, stroke.brushSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            // Draw a square
+            const halfSize = stroke.brushSize / 2;
+            ctx.fillRect(firstPoint.x - halfSize, firstPoint.y - halfSize, stroke.brushSize, stroke.brushSize);
+          }
         } else {
           // Draw lines for multi-point strokes
+          
           ctx.beginPath();
           ctx.moveTo(firstPoint.x, firstPoint.y);
           
@@ -253,15 +280,24 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     currentStroke.current = {
       mode: drawingMode,
       brushSize: brushSize,
+      brushShape: brushShape,
       points: [{ x: offsetX, y: offsetY }]
     };
     
     // Set up context and draw a single dot
     const ctx = canvasRef.current.getContext('2d');
     setupContext(ctx);
-    ctx.beginPath();
-    ctx.arc(offsetX, offsetY, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
+    
+    if (brushShape === 'circle') {
+      // Draw a circle
+      ctx.beginPath();
+      ctx.arc(offsetX, offsetY, brushSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Draw a square
+      const halfSize = brushSize / 2;
+      ctx.fillRect(offsetX - halfSize, offsetY - halfSize, brushSize, brushSize);
+    }
   };
 
   const draw = (e) => {

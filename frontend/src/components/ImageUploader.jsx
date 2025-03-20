@@ -171,8 +171,8 @@ const ImageUploader = () => {
   ]);
 
   return (
-    <Box p={4} borderWidth="1px" borderRadius="lg" bg="white" shadow="md">
-      <VStack spacing={4} align="stretch">
+    <Box p={4} borderWidth="1px" borderRadius="lg" bg="white" shadow="md" width="100%">
+      <VStack spacing={4} align="stretch" width="100%">
         <FormControl>
           <FormLabel>Upload Image</FormLabel>
           <Input
@@ -180,6 +180,7 @@ const ImageUploader = () => {
             accept=".jpg,.jpeg"
             onChange={handleFileChange}
             p={1}
+            width="100%"
           />
           <Text fontSize="sm" color="gray.500" mt={1}>
             Supported formats: JPEG
@@ -203,6 +204,7 @@ const ImageUploader = () => {
             isLoading={uploadProgress > 0 && uploadProgress < 100}
             loadingText="Uploading..."
             isDisabled={!selectedFile}
+            width="100%"
           >
             Upload
           </Button>
