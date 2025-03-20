@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useMemo, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useAppContext } from './AppContext';
 
 // Create context
 const CanvasContext = createContext();
@@ -14,16 +15,20 @@ export const useCanvasContext = () => {
 
 // Provider component
 export const CanvasProvider = ({ children }) => {
+  const { saveImageMask } = useAppContext();
+  
   // Canvas state
   const [strokes, setStrokes] = useState([]);
+  const [currentTool, setCurrentTool] = useState('brush'); // 'brush', 'eraser', 'rectangle', 'circle'
+  const [brushSize, setBrushSize] = useState(15);
   
   // Use a ref to track strokes for operations that don't need re-renders
   const strokesRef = useRef([]);
   
   // Keep strokesRef in sync with strokes state
-  useRef(() => {
+  useEffect(() => {
     strokesRef.current = strokes;
-  }).current = strokes;
+  }, [strokes]);
 
   // Add a new stroke
   const addStroke = useCallback((stroke) => {
@@ -57,23 +62,67 @@ export const CanvasProvider = ({ children }) => {
   const getCurrentStrokes = useCallback(() => {
     return strokesRef.current;
   }, []);
+  
+  // Save the mask to the server
+  const saveMask = useCallback(async () => {
+    if (!saveImageMask) {
+      throw new Error('saveImageMask function not available');
+    }
+    
+    try {
+      // Get the canvas element
+      const canvas = document.querySelector('canvas');
+      if (!canvas) {
+        throw new Error('Canvas element not found');
+      }
+      
+      // Convert canvas to blob
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(resolve, 'image/png');
+      });
+      
+      // Save the mask
+      await saveImageMask(blob);
+      
+      return true;
+    } catch (error) {
+      console.error('Error saving mask:', error);
+      throw error;
+    }
+  }, [saveImageMask]);
 
+  // Create memoized callbacks for setters
+  const memoizedSetCurrentTool = useCallback((tool) => setCurrentTool(tool), []);
+  const memoizedSetBrushSize = useCallback((size) => setBrushSize(size), []);
+  
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     // State
     strokes,
+    currentTool,
+    brushSize,
+    
+    // Setters
+    setCurrentTool: memoizedSetCurrentTool,
+    setBrushSize: memoizedSetBrushSize,
     
     // Actions (all wrapped in useCallback to maintain reference equality)
     addStroke,
     handleUndo,
     clearCanvas,
-    getCurrentStrokes
+    getCurrentStrokes,
+    saveMask
   }), [
     strokes,
+    currentTool,
+    brushSize,
+    memoizedSetCurrentTool,
+    memoizedSetBrushSize,
     addStroke,
     handleUndo,
     clearCanvas,
-    getCurrentStrokes
+    getCurrentStrokes,
+    saveMask
   ]);
 
   return <CanvasContext.Provider value={value}>{children}</CanvasContext.Provider>;

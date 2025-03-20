@@ -14,10 +14,10 @@ export { useAppContext } from './AppContext';
  */
 export const AllProvidersWrapper = ({ children }) => (
   <AppProvider>
-    <UIProvider>
-      <CanvasProvider>
+    <CanvasProvider>
+      <UIProvider>
         {children}
-      </CanvasProvider>
-    </UIProvider>
+      </UIProvider>
+    </CanvasProvider>
   </AppProvider>
 );

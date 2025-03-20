@@ -19,6 +19,7 @@ export const UIProvider = ({ children }) => {
   const [brushSize, setBrushSize] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [statusMessage, setStatusMessage] = useState('');
 
   // Reset UI state
   const resetUIState = useCallback(() => {
@@ -26,8 +27,16 @@ export const UIProvider = ({ children }) => {
     setBrushSize(10);
     setIsLoading(false);
     setError(null);
+    setStatusMessage('');
   }, []);
 
+  // Create memoized callbacks for setters
+  const memoizedSetDrawingMode = useCallback((mode) => setDrawingMode(mode), []);
+  const memoizedSetBrushSize = useCallback((size) => setBrushSize(size), []);
+  const memoizedSetIsLoading = useCallback((loading) => setIsLoading(loading), []);
+  const memoizedSetError = useCallback((err) => setError(err), []);
+  const memoizedSetStatusMessage = useCallback((message) => setStatusMessage(message), []);
+  
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     // State
@@ -35,20 +44,28 @@ export const UIProvider = ({ children }) => {
     brushSize,
     isLoading,
     error,
+    statusMessage,
     
-    // Setters (wrapped in useCallback to maintain reference equality)
-    setDrawingMode: useCallback((mode) => setDrawingMode(mode), []),
-    setBrushSize: useCallback((size) => setBrushSize(size), []),
-    setIsLoading: useCallback((loading) => setIsLoading(loading), []),
-    setError: useCallback((err) => setError(err), []),
+    // Setters
+    setDrawingMode: memoizedSetDrawingMode,
+    setBrushSize: memoizedSetBrushSize,
+    setIsLoading: memoizedSetIsLoading,
+    setError: memoizedSetError,
+    setStatusMessage: memoizedSetStatusMessage,
     
     // Actions
     resetUIState
   }), [
-    drawingMode, 
-    brushSize, 
-    isLoading, 
-    error, 
+    drawingMode,
+    brushSize,
+    isLoading,
+    error,
+    statusMessage,
+    memoizedSetDrawingMode,
+    memoizedSetBrushSize,
+    memoizedSetIsLoading,
+    memoizedSetError,
+    memoizedSetStatusMessage,
     resetUIState
   ]);
 

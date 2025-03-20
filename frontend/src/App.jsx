@@ -1,27 +1,32 @@
-import { Box, Container, Heading, VStack, Text } from '@chakra-ui/react';
+import { Box } from '@chakra-ui/react';
+import { useState, useCallback } from 'react';
 import { AllProvidersWrapper } from './contexts/AppContexts';
-import ImageUploader from './components/ImageUploader';
-import ImageEditor from './components/ImageEditor';
+import AppHeader from './components/layout/AppHeader';
+import Workspace from './components/layout/Workspace';
+import StatusFooter from './components/layout/StatusFooter';
+import ToolPanel from './components/tools/ToolPanel';
+import CanvasArea from './components/canvas/CanvasArea';
+import Toolbar from './components/Toolbar';
 import './App.css';
 
 function App() {
+  const [canvasElement, setCanvasElement] = useState(null);
+  
+  const handleCanvasReady = useCallback((canvas) => {
+    setCanvasElement(canvas);
+  }, []);
+  
   return (
     <AllProvidersWrapper>
-      <Container maxW="container.xl" py={8}>
-        <VStack spacing={8} align="stretch">
-          <Box textAlign="center">
-            <Heading as="h1" size="xl" mb={2}>Mask Generator Tool</Heading>
-            <Text color="gray.600">Upload an image and draw a mask by marking areas on the image</Text>
-          </Box>
-          
-          <ImageUploader />
-          <ImageEditor />
-          
-          <Box as="footer" textAlign="center" fontSize="sm" color="gray.500" mt={8}>
-            <Text>© 2025 Mask Generator Tool</Text>
-          </Box>
-        </VStack>
-      </Container>
+      <Box minH="100vh" display="flex" flexDirection="column">
+        <AppHeader />
+        <Workspace
+          toolPanel={<ToolPanel />}
+          canvasArea={<CanvasArea onCanvasReady={handleCanvasReady} />}
+        />
+        <StatusFooter />
+        {canvasElement && <Toolbar canvasElement={canvasElement} />}
+      </Box>
     </AllProvidersWrapper>
   );
 }

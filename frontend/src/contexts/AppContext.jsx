@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import { saveMask } from '../services/api';
 
 // Create context
 const AppContext = createContext();
@@ -47,6 +48,28 @@ export const AppProvider = ({ children }) => {
     return newScaleFactor;
   }, []);
 
+  // Define setters with useCallback
+  const setOriginalImageCallback = useCallback((image) => setOriginalImage(image), []);
+  const setDisplayImageCallback = useCallback((image) => setDisplayImage(image), []);
+  const setImageIdCallback = useCallback((id) => setImageId(id), []);
+  const setOriginalFileNameCallback = useCallback((name) => setOriginalFileName(name), []);
+  const setOriginalDimensionsCallback = useCallback((dimensions) => setOriginalDimensions(dimensions), []);
+  const setScaleFactorCallback = useCallback((factor) => setScaleFactor(factor), []);
+  
+  // Save image mask function
+  const saveImageMask = useCallback(async (maskBlob) => {
+    if (!imageId) {
+      throw new Error('No image ID available');
+    }
+    
+    try {
+      return await saveMask(imageId, maskBlob);
+    } catch (error) {
+      console.error('Error saving mask:', error);
+      throw error;
+    }
+  }, [imageId]);
+
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     // State
@@ -57,17 +80,18 @@ export const AppProvider = ({ children }) => {
     originalDimensions,
     scaleFactor,
     
-    // Setters (wrapped in useCallback to maintain reference equality)
-    setOriginalImage: useCallback((image) => setOriginalImage(image), []),
-    setDisplayImage: useCallback((image) => setDisplayImage(image), []),
-    setImageId: useCallback((id) => setImageId(id), []),
-    setOriginalFileName: useCallback((name) => setOriginalFileName(name), []),
-    setOriginalDimensions: useCallback((dimensions) => setOriginalDimensions(dimensions), []),
-    setScaleFactor: useCallback((factor) => setScaleFactor(factor), []),
+    // Setters
+    setOriginalImage: setOriginalImageCallback,
+    setDisplayImage: setDisplayImageCallback,
+    setImageId: setImageIdCallback,
+    setOriginalFileName: setOriginalFileNameCallback,
+    setOriginalDimensions: setOriginalDimensionsCallback,
+    setScaleFactor: setScaleFactorCallback,
     
     // Actions
     resetState,
-    calculateScaleFactor
+    calculateScaleFactor,
+    saveImageMask
   }), [
     originalImage,
     displayImage,
@@ -75,8 +99,15 @@ export const AppProvider = ({ children }) => {
     originalFileName,
     originalDimensions,
     scaleFactor,
+    setOriginalImageCallback,
+    setDisplayImageCallback,
+    setImageIdCallback,
+    setOriginalFileNameCallback,
+    setOriginalDimensionsCallback,
+    setScaleFactorCallback,
     resetState,
-    calculateScaleFactor
+    calculateScaleFactor,
+    saveImageMask
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

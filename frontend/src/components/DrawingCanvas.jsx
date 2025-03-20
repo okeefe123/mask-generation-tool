@@ -2,7 +2,9 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { Box } from '@chakra-ui/react';
 import { useAppContext, useUIContext, useCanvasContext } from '../contexts/AppContexts';
 
-const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
+const DrawingCanvas = ({ onCanvasReady }) => {
+  // Create a ref to the parent image element
+  const imageRef = useRef(null);
   // Internal refs and state
   const canvasRef = useRef(null);
   const currentStroke = useRef(null);
@@ -75,6 +77,22 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
     ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)';
     ctx.globalCompositeOperation = drawingMode === 'draw' ? 'source-over' : 'destination-out';
   }, [brushSize, drawingMode]);
+
+  // Find the image element in the parent
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    
+    // Find the image element in the parent container
+    const parentContainer = canvasRef.current.parentElement.parentElement;
+    const imgElement = parentContainer.querySelector('img');
+    
+    if (imgElement) {
+      console.log('Found image element:', imgElement);
+      imageRef.current = imgElement;
+    } else {
+      console.warn('Could not find image element in parent container');
+    }
+  }, [canvasRef.current]);
 
   // Initialize canvas when component mounts or when display image changes
   useEffect(() => {
