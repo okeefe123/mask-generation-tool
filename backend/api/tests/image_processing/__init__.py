@@ -1,0 +1,1 @@
+# This file makes the image_processing test directory a Python package

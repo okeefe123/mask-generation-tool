@@ -1,0 +1,66 @@
+import { createContext, useContext, useState } from 'react';
+
+const ImageContext = createContext();
+
+export const useImageContext = () => useContext(ImageContext);
+
+export const ImageProvider = ({ children }) => {
+  const [originalImage, setOriginalImage] = useState(null);
+  const [displayImage, setDisplayImage] = useState(null);
+  const [imageId, setImageId] = useState(null); // Add image ID from backend
+  const [originalDimensions, setOriginalDimensions] = useState({ width: 0, height: 0 });
+  const [scaleFactor, setScaleFactor] = useState(1);
+  const [drawingMode, setDrawingMode] = useState('draw'); // 'draw' or 'erase'
+  const [brushSize, setBrushSize] = useState(10);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Reset all state
+  const resetState = () => {
+    setOriginalImage(null);
+    setDisplayImage(null);
+    setImageId(null);
+    setOriginalDimensions({ width: 0, height: 0 });
+    setScaleFactor(1);
+    setDrawingMode('draw');
+    setBrushSize(10);
+    setIsLoading(false);
+    setError(null);
+  };
+
+  // Calculate scale factor based on viewport and image dimensions
+  const calculateScaleFactor = (imageWidth, imageHeight, containerWidth, containerHeight) => {
+    const widthRatio = containerWidth / imageWidth;
+    const heightRatio = containerHeight / imageHeight;
+    
+    // Use the smaller ratio to ensure the image fits within the container
+    const newScaleFactor = Math.min(widthRatio, heightRatio, 1);
+    setScaleFactor(newScaleFactor);
+    return newScaleFactor;
+  };
+
+  const value = {
+    originalImage,
+    setOriginalImage,
+    displayImage,
+    setDisplayImage,
+    imageId,
+    setImageId,
+    originalDimensions,
+    setOriginalDimensions,
+    scaleFactor,
+    setScaleFactor,
+    drawingMode,
+    setDrawingMode,
+    brushSize,
+    setBrushSize,
+    isLoading,
+    setIsLoading,
+    error,
+    setError,
+    resetState,
+    calculateScaleFactor,
+  };
+
+  return <ImageContext.Provider value={value}>{children}</ImageContext.Provider>;
+};
