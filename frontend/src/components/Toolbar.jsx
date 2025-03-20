@@ -9,7 +9,6 @@ import {
   SliderThumb,
   Text,
   Tooltip,
-  IconButton,
   useToast,
   useDisclosure,
   Modal,
@@ -20,8 +19,8 @@ import {
   ModalFooter,
   ModalCloseButton,
 } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
-import { useImageContext } from '../contexts/ImageContext';
+import { useState, useEffect, useRef } from 'react';
+import { useAppContext, useUIContext } from '../contexts/AppContexts';
 import { saveMask } from '../services/api';
 
 const Toolbar = ({ canvasElement }) => {
@@ -30,20 +29,25 @@ const Toolbar = ({ canvasElement }) => {
   const [canvasError, setCanvasError] = useState(null);
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const saveOperationRef = useRef(null);
+  
+  // Get state from contexts
+  const {
+    originalImage,
+    displayImage,
+    imageId,
+    originalFileName,
+    originalDimensions,
+  } = useAppContext();
   
   const {
     drawingMode,
     setDrawingMode,
     brushSize,
     setBrushSize,
-    originalImage,
-    displayImage,
-    imageId,
-    originalFileName,
-    originalDimensions,
     setIsLoading,
     setError,
-  } = useImageContext();
+  } = useUIContext();
   
   // Debug - check dependencies on mount and when they change
   useEffect(() => {
@@ -51,7 +55,7 @@ const Toolbar = ({ canvasElement }) => {
       canvasElement,
       originalImage,
       originalDimensions,
-      brushSize // Add brushSize to logging
+      brushSize
     });
     
     // Check if canvas is available and valid
@@ -91,9 +95,8 @@ const Toolbar = ({ canvasElement }) => {
   };
 
   const handleClear = () => {
-    if (canvasElement) {
-      const ctx = canvasElement.getContext('2d');
-      ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    if (canvasElement && canvasElement.clear) {
+      canvasElement.clear();
       toast({
         title: 'Canvas cleared',
         status: 'info',
@@ -103,44 +106,45 @@ const Toolbar = ({ canvasElement }) => {
     }
   };
 
-  // Create a new direct canvas function for saving
+  // Optimized save operation that doesn't affect the original canvas
   const saveCanvasAsMask = async () => {
     try {
-      // Thorough canvas validation - we now use canvasElement directly
+      // If already saving, don't start a new save
+      if (isSaving) return;
+      
+      // Thorough canvas validation
       if (!canvasElement) {
         throw new Error("Canvas element is not available");
       }
       
-      // Simple tag validation
-      console.log('Canvas element for saving:', canvasElement);
-      
       // Basic check - is it a canvas tag?
       if (canvasElement.tagName !== 'CANVAS') {
-        console.error('Element is not a canvas:', canvasElement);
         throw new Error("Element is not a canvas");
       }
       
       // Check for required method
       if (typeof canvasElement.getContext !== 'function') {
-        console.error('Missing getContext method:', canvasElement);
         throw new Error("Canvas missing required methods");
       }
       
-      // At this point, we know the canvas is valid
-      
       // Check if we have the image URL from the server
       if (!originalImage) {
-        // If not, check if we at least have the display image
         if (!displayImage) {
           throw new Error("No image has been uploaded");
         }
-        
-        // We can't save without the server-side image ID
         throw new Error("Image was not properly uploaded to the server. Please try uploading again.");
       }
       
-      // Get canvas and create a temp canvas for processing
-      // IMPORTANT: We use a separate canvas for saving to avoid affecting the original
+      // Cancel any previous save operation
+      if (saveOperationRef.current) {
+        saveOperationRef.current.abort();
+      }
+      
+      // Create an abort controller for this operation
+      const abortController = new AbortController();
+      saveOperationRef.current = abortController;
+      
+      // Create a temporary canvas for processing to avoid modifying the original
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = originalDimensions.width;
       tempCanvas.height = originalDimensions.height;
@@ -150,91 +154,68 @@ const Toolbar = ({ canvasElement }) => {
       tempCtx.fillStyle = 'black';
       tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
       
-      // Draw white where there was drawing on the original canvas
-      tempCtx.fillStyle = 'white';
-      
-      // Get canvas context and image data
-      try {
-        // Get the canvas context
-        const sourceCtx = canvasElement.getContext('2d');
-        if (!sourceCtx) {
-          throw new Error('Failed to get canvas context');
-        }
-        
-        // Get the pixel data
-        const sourceData = sourceCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
-      
-        // Check if there's any drawing (non-transparent pixels)
-        let hasDrawing = false;
-        for (let i = 3; i < sourceData.data.length; i += 4) {
-          if (sourceData.data[i] > 0) {
-            hasDrawing = true;
-            break;
-          }
-        }
-        
-        if (!hasDrawing) {
-          throw new Error("Please draw something before saving");
-        }
-        
-        console.log('Saving mask from canvas - preserving original strokes');
-        
-        // Scale and draw the canvas to our temporary canvas (not affecting the original)
-        tempCtx.drawImage(canvasElement, 0, 0, canvasElement.width, canvasElement.height,
-                      0, 0, tempCanvas.width, tempCanvas.height);
-      } catch (err) {
-        console.error('Canvas operation error:', err);
-        throw new Error(`Canvas error: ${err.message}`);
+      // Get the canvas context
+      const sourceCtx = canvasElement.getContext('2d');
+      if (!sourceCtx) {
+        throw new Error('Failed to get canvas context');
       }
+      
+      // Get the pixel data
+      const sourceData = sourceCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+    
+      // Check if there's any drawing (non-transparent pixels)
+      let hasDrawing = false;
+      for (let i = 3; i < sourceData.data.length; i += 4) {
+        if (sourceData.data[i] > 0) {
+          hasDrawing = true;
+          break;
+        }
+      }
+      
+      if (!hasDrawing) {
+        throw new Error("Please draw something before saving");
+      }
+      
+      // Scale and draw the canvas to our temporary canvas (not affecting the original)
+      tempCtx.drawImage(
+        canvasElement, 
+        0, 0, canvasElement.width, canvasElement.height,
+        0, 0, tempCanvas.width, tempCanvas.height
+      );
       
       // Determine file type based on original filename
-      let fileType = 'image/jpeg';
+      let fileType = 'image/png';
       let maskFileName;
-      
-      if (originalFileName) {
-        const lastDotIndex = originalFileName.lastIndexOf('.');
-        const extension = lastDotIndex > 0 ? originalFileName.substring(lastDotIndex) : '.jpg';
-        
-        // Set the correct MIME type based on extension
-        if (extension.toLowerCase() === '.png') {
-          fileType = 'image/png';
-        }
-      }
-      
-      // Get the image as data URL and convert to blob
-      const dataUrl = tempCanvas.toDataURL(fileType);
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      
-      if (!imageId) {
-        throw new Error("Image ID is missing. Please re-upload the image.");
-      }
-      
-      // Generate mask filename based on original filename
       
       if (originalFileName) {
         // Extract base name and extension
         const lastDotIndex = originalFileName.lastIndexOf('.');
         const baseName = lastDotIndex > 0 ? originalFileName.substring(0, lastDotIndex) : originalFileName;
-        const extension = lastDotIndex > 0 ? originalFileName.substring(lastDotIndex) : '.jpg';
         
-        // Use the same extension as the original file
-        maskFileName = `${baseName}${extension}`;
-        console.log('Using original file name and extension for mask:', maskFileName);
+        // Always use PNG for masks
+        maskFileName = `${baseName}.png`;
       } else {
         // Fallback to using ID if original filename is not available
-        maskFileName = `${imageId}.jpg`;
-        console.log('Original file name not available, using ID for mask:', maskFileName);
+        maskFileName = `mask_${imageId}.png`;
       }
+      
+      // Convert to blob asynchronously
+      const blob = await new Promise(resolve => {
+        tempCanvas.toBlob(resolve, fileType);
+      });
       
       // Create file with the generated name and matching type
       const file = new File([blob], maskFileName, { type: fileType });
       
       // Send to server using the numeric ID
-      return await saveMask(imageId, file);
+      return await saveMask(imageId, file, abortController.signal);
     } catch (error) {
-      console.error('Failed to save mask:', error);
-      throw error;
+      if (error.name !== 'AbortError') {
+        console.error('Failed to save mask:', error);
+        throw error;
+      }
+    } finally {
+      saveOperationRef.current = null;
     }
   };
   
@@ -256,14 +237,8 @@ const Toolbar = ({ canvasElement }) => {
         return;
       }
       
-      console.log('Starting save operation - preserving strokes');
-      
-      // Use our direct canvas function
+      // Use our optimized save function
       const result = await saveCanvasAsMask();
-      console.log('Save result:', result);
-      
-      // Important: We don't clear the canvas after saving
-      console.log('Save completed - strokes should remain visible');
       
       toast({
         title: 'Mask saved',
@@ -311,18 +286,20 @@ const Toolbar = ({ canvasElement }) => {
       <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align="center" gap={4}>
         <Flex gap={4}>
           <Button
-            colorScheme="blue"
+            colorScheme={drawingMode === 'draw' ? 'blue' : 'gray'}
+            variant={drawingMode === 'draw' ? 'solid' : 'outline'}
             onClick={() => handleDrawModeChange('draw')}
             isDisabled={!!canvasError}
           >
             Draw
           </Button>
           <Button
-            colorScheme="red"
-            onClick={() => canvasElement.undo()}
+            colorScheme={drawingMode === 'erase' ? 'red' : 'gray'}
+            variant={drawingMode === 'erase' ? 'solid' : 'outline'}
+            onClick={() => handleDrawModeChange('erase')}
             isDisabled={!!canvasError}
           >
-            Undo
+            Erase
           </Button>
         </Flex>
 
@@ -332,7 +309,7 @@ const Toolbar = ({ canvasElement }) => {
           </Text>
           <Slider
             aria-label="brush-size"
-            defaultValue={brushSize}
+            value={brushSize}
             min={1}
             max={50}
             onChange={handleBrushSizeChange}

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { Box, Center, Flex, Spinner, Text } from '@chakra-ui/react';
-import { useImageContext } from '../contexts/ImageContext';
+import { useAppContext, useUIContext } from '../contexts/AppContexts';
 import DrawingCanvas from './DrawingCanvas';
 import Toolbar from './Toolbar';
 
@@ -26,13 +26,17 @@ const ImageEditor = () => {
     };
   }, [canvasElement]);
   
+  // Get state from contexts
   const { 
     displayImage, 
     originalDimensions, 
-    calculateScaleFactor, 
-    isLoading, 
-    error 
-  } = useImageContext();
+    calculateScaleFactor
+  } = useAppContext();
+  
+  const {
+    isLoading,
+    error
+  } = useUIContext();
 
   // Calculate scale factor when image or container size changes
   useEffect(() => {

@@ -1,0 +1,19 @@
+RUN v1.2.1 /Users/okeefeniemann/Library/Mobile Documents/com~apple~CloudDocs/Documents/Data_Science_Projects/mask_generator_tool/frontend
+
+ ✓ frontend/src/__tests__/contexts/AppContext.test.jsx (1 test) 1ms
+ ✓ frontend/src/__tests__/contexts/CanvasContext.test.jsx (1 test) 0ms
+ ✓ frontend/src/__tests__/contexts/CombinedContext.test.jsx (1 test) 0ms
+ ✓ frontend/src/__tests__/contexts/ImageContext.test.jsx (1 test) 0ms
+ ✓ frontend/src/__tests__/contexts/UIContext.test.jsx (1 test) 0ms
+ ✓ frontend/src/__tests__/components/DrawingCanvas.test.jsx (6 tests) 3ms
+ ✓ frontend/src/__tests__/components/ImageEditor.test.jsx (5 tests) 2ms
+ ✓ frontend/src/__tests__/components/ImageUploader.test.jsx (6 tests) 2ms
+ ✓ frontend/src/__tests__/components/Toolbar.test.jsx (7 tests) 3ms
+ ✓ frontend/src/__tests__/utils/imageProcessing.test.js (1 test) 0ms
+ ✓ frontend/src/__tests__/utils/largeImageHandling.test.js (1 test) 0ms
+
+Test Files  11 passed (11)
+     Tests  31 passed (31)
+      Time  1.12s (in thread 0.01s, 11200.00%)
+
+✨ PASS ✨

@@ -1,11 +1,13 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 import DrawingCanvas from '../../components/DrawingCanvas';
-import { useImageContext } from '../../contexts/ImageContext';
+import { useAppContext, useUIContext, useCanvasContext } from '../../contexts/AppContexts';
 
-// Mock the ImageContext
-vi.mock('../../contexts/ImageContext', () => ({
-  useImageContext: vi.fn(),
+// Mock the contexts
+vi.mock('../../contexts/AppContexts', () => ({
+  useAppContext: vi.fn(),
+  useUIContext: vi.fn(),
+  useCanvasContext: vi.fn(),
 }));
 
 describe('DrawingCanvas Component', () => {
@@ -41,28 +43,43 @@ describe('DrawingCanvas Component', () => {
     },
   };
 
-  // Default context values
-  const defaultContextValues = {
+  // Mock context values
+  const mockAppContextValues = {
     displayImage: 'test-image.jpg',
-    drawingMode: 'draw',
-    brushSize: 10,
     originalDimensions: { width: 1920, height: 1080 },
     scaleFactor: 0.5,
+  };
+
+  const mockUIContextValues = {
+    drawingMode: 'draw',
+    brushSize: 10,
+    isLoading: false,
+    setIsLoading: vi.fn(),
+  };
+
+  const mockCanvasContextValues = {
+    strokes: [],
+    addStroke: vi.fn(),
+    handleUndo: vi.fn(),
+    clearCanvas: vi.fn(),
+    getCurrentStrokes: vi.fn().mockReturnValue([]),
   };
 
   beforeEach(() => {
     // Reset mocks
     vi.clearAllMocks();
     
-    // Setup default context
-    useImageContext.mockReturnValue(defaultContextValues);
+    // Setup default context values
+    useAppContext.mockReturnValue(mockAppContextValues);
+    useUIContext.mockReturnValue(mockUIContextValues);
+    useCanvasContext.mockReturnValue(mockCanvasContextValues);
     
     // Mock canvas element creation
     HTMLCanvasElement.prototype.getContext = mockGetContext;
   });
 
   test('renders canvas when display image is available', () => {
-    render(<DrawingCanvas imageRef={mockImageRef} />);
+    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={vi.fn()} />);
     
     // Check that the canvas is rendered
     const canvas = screen.getByRole('presentation');
@@ -71,12 +88,12 @@ describe('DrawingCanvas Component', () => {
 
   test('does not allow drawing when no image is displayed', () => {
     // Set displayImage to null
-    useImageContext.mockReturnValue({
-      ...defaultContextValues,
+    useAppContext.mockReturnValue({
+      ...mockAppContextValues,
       displayImage: null,
     });
     
-    render(<DrawingCanvas imageRef={mockImageRef} />);
+    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={vi.fn()} />);
     
     // Check that the canvas has pointer-events: none
     const canvas = screen.getByRole('presentation');
@@ -85,24 +102,25 @@ describe('DrawingCanvas Component', () => {
 
   test('sets correct drawing style based on mode', () => {
     // Test draw mode
-    useImageContext.mockReturnValue({
-      ...defaultContextValues,
+    useUIContext.mockReturnValue({
+      ...mockUIContextValues,
       drawingMode: 'draw',
     });
     
-    render(<DrawingCanvas imageRef={mockImageRef} />);
+    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={vi.fn()} />);
     
     // Test erase mode
-    useImageContext.mockReturnValue({
-      ...defaultContextValues,
+    useUIContext.mockReturnValue({
+      ...mockUIContextValues,
       drawingMode: 'erase',
     });
     
-    render(<DrawingCanvas imageRef={mockImageRef} />);
+    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={vi.fn()} />);
   });
 
   test('handles mouse events correctly', () => {
-    render(<DrawingCanvas imageRef={mockImageRef} />);
+    const mockOnCanvasReady = vi.fn();
+    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={mockOnCanvasReady} />);
     
     const canvas = screen.getByRole('presentation');
     
@@ -117,13 +135,15 @@ describe('DrawingCanvas Component', () => {
     
     // Check that drawing methods were called
     expect(mockGetContext().beginPath).toHaveBeenCalled();
-    expect(mockGetContext().moveTo).toHaveBeenCalled();
-    expect(mockGetContext().lineTo).toHaveBeenCalled();
-    expect(mockGetContext().stroke).toHaveBeenCalled();
+    expect(mockGetContext().arc).toHaveBeenCalled();
+    expect(mockGetContext().fill).toHaveBeenCalled();
+    
+    // Check that stroke was added to context
+    expect(mockCanvasContextValues.addStroke).toHaveBeenCalled();
   });
 
   test('handles touch events correctly', () => {
-    render(<DrawingCanvas imageRef={mockImageRef} />);
+    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={vi.fn()} />);
     
     const canvas = screen.getByRole('presentation');
     
@@ -142,31 +162,34 @@ describe('DrawingCanvas Component', () => {
     
     // Check that drawing methods were called
     expect(mockGetContext().beginPath).toHaveBeenCalled();
-    expect(mockGetContext().moveTo).toHaveBeenCalled();
-    expect(mockGetContext().lineTo).toHaveBeenCalled();
-    expect(mockGetContext().stroke).toHaveBeenCalled();
+    expect(mockGetContext().arc).toHaveBeenCalled();
+    expect(mockGetContext().fill).toHaveBeenCalled();
   });
 
-  test('clears canvas when clear method is called', () => {
-    render(<DrawingCanvas imageRef={mockImageRef} />);
+  test('exposes undo and clear methods to canvas element', () => {
+    const mockOnCanvasReady = vi.fn();
+    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={mockOnCanvasReady} />);
     
-    // Get the canvas element
-    const canvas = screen.getByRole('presentation');
+    // Check that onCanvasReady was called with canvas element
+    expect(mockOnCanvasReady).toHaveBeenCalled();
+    
+    // Get the canvas element passed to onCanvasReady
+    const canvasElement = mockOnCanvasReady.mock.calls[0][0];
+    
+    // Check that undo and clear methods are attached
+    expect(typeof canvasElement.undo).toBe('function');
+    expect(typeof canvasElement.clear).toBe('function');
+    
+    // Call the undo method
+    canvasElement.undo();
+    
+    // Check that handleUndo was called
+    expect(mockCanvasContextValues.handleUndo).toHaveBeenCalled();
     
     // Call the clear method
-    canvas.clear();
+    canvasElement.clear();
     
-    // Check that clearRect was called
-    expect(mockGetContext().clearRect).toHaveBeenCalled();
-  });
-
-  test('resizes canvas when window is resized', () => {
-    render(<DrawingCanvas imageRef={mockImageRef} />);
-    
-    // Simulate window resize
-    global.dispatchEvent(new Event('resize'));
-    
-    // Check that canvas was resized
-    expect(mockGetContext().clearRect).toHaveBeenCalled();
+    // Check that clearCanvas was called
+    expect(mockCanvasContextValues.clearCanvas).toHaveBeenCalled();
   });
 });

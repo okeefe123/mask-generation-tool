@@ -1,49 +1,53 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Box } from '@chakra-ui/react';
-import { useImageContext } from '../contexts/ImageContext';
+import { useAppContext, useUIContext, useCanvasContext } from '../contexts/AppContexts';
 
 const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
   // Internal refs and state
   const canvasRef = useRef(null);
-  const [strokes, setStrokes] = useState([]);
-  const strokesRef = useRef([]); // Add a ref to preserve strokes between renders
   const currentStroke = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
   
-  // Handle undoing last stroke
-  const handleUndo = useCallback(() => {
+  // Get state from contexts
+  const {
+    displayImage,
+    originalDimensions,
+    scaleFactor,
+  } = useAppContext();
+  
+  const {
+    drawingMode,
+    brushSize,
+    isLoading,
+    setIsLoading,
+  } = useUIContext();
+  
+  const {
+    strokes,
+    addStroke,
+    handleUndo,
+    clearCanvas: clearCanvasStrokes,
+    getCurrentStrokes
+  } = useCanvasContext();
+  
+  // Handle undoing last stroke - delegate to context
+  const undoHandler = useCallback(() => {
     console.log('Undo requested');
-    
-    // First check strokesRef for actual stroke count
-    console.log('Current strokes in ref before undo:', strokesRef.current.length);
-    
-    // If there are no strokes in ref either, nothing to do
-    if (strokesRef.current.length === 0) {
-      console.log('No strokes to undo in ref');
-      return;
-    }
-    
-    // Remove the last stroke from strokesRef
-    const newStrokesRef = strokesRef.current.slice(0, -1);
-    console.log('Updated strokesRef:', newStrokesRef.length);
-    strokesRef.current = newStrokesRef;
-    
-    // Update state to match ref (this triggers redraw)
-    setStrokes([...newStrokesRef]);
-    
-    // Also update savedStrokes in context to persist across unmounts
-    setSavedStrokes([...newStrokesRef]);
-    console.log('Updated strokes state and savedStrokes in context');
-  }, []);
+    handleUndo();
+  }, [handleUndo]);
   
   // Notify parent component when canvas is ready and expose undo function
   useEffect(() => {
     if (canvasRef.current) {
       console.log('Canvas is ready, notifying parent:', canvasRef.current);
       // Add undo method to canvas element
-      canvasRef.current.undo = handleUndo;
+      canvasRef.current.undo = undoHandler;
+      // Add clear method to canvas element
+      canvasRef.current.clear = clearCanvas;
       onCanvasReady(canvasRef.current);
     }
-  }, [canvasRef.current, onCanvasReady, handleUndo]);
+  }, [canvasRef.current, onCanvasReady, undoHandler]);
   
   // Debug - log when the canvas element is created or changes
   useEffect(() => {
@@ -57,35 +61,11 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
       console.warn('Canvas ref is null!');
     }
   }, [canvasRef.current]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
-  
-  const {
-    displayImage,
-    drawingMode,
-    brushSize,
-    originalDimensions,
-    scaleFactor,
-    isLoading,
-    setIsLoading,
-    savedStrokes,
-    setSavedStrokes
-  } = useImageContext();
   
   // Monitor loading state changes
   useEffect(() => {
     console.log('Loading state changed:', isLoading);
-    if (isLoading) {
-      console.log('App is in loading state - strokes count:', strokes.length, 'strokesRef count:', strokesRef.current.length);
-    } else {
-      console.log('App finished loading - strokes count:', strokes.length, 'strokesRef count:', strokesRef.current.length);
-      // If we have strokes in ref but not in state after loading, restore them
-      if (strokes.length === 0 && strokesRef.current.length > 0) {
-        console.log('Restoring strokes from ref after loading state change');
-        setStrokes([...strokesRef.current]);
-      }
-    }
-  }, [isLoading, strokes.length]);
+  }, [isLoading]);
 
   // Function to set up canvas context with current drawing settings
   const setupContext = useCallback((ctx) => {
@@ -118,25 +98,12 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
       canvasBoundingRect: canvas.getBoundingClientRect()
     });
     
-    // Initialize strokes from saved strokes in context
-    if (savedStrokes.length > 0) {
-      console.log('Initializing strokes from savedStrokes in context:', savedStrokes.length);
-      setStrokes([...savedStrokes]);
-      strokesRef.current = [...savedStrokes];
-    } else {
-      // Clear canvas and strokes when image changes and no saved strokes
-      setStrokes([]);
-      strokesRef.current = [];
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-    
     // Set up initial context state
     setupContext(ctx);
-  }, [displayImage, imageRef, setupContext, savedStrokes]);
-
-  // We'll move this effect after redrawCanvas is defined
-
-  // This effect has been replaced by the setupContext function and its effect above
+    
+    // Initial redraw
+    redrawCanvas();
+  }, [displayImage, imageRef, setupContext]);
 
   // Handle window resize
   useEffect(() => {
@@ -164,15 +131,11 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, [displayImage, imageRef]);
 
-  // setupContext is already defined above
-
   // Function to redraw all strokes
   const redrawCanvas = useCallback(() => {
-    // Use strokesRef if strokes state is empty - this is critical for preserving strokes
-    const strokesToUse = strokes.length > 0 ? strokes : strokesRef.current;
-    console.log('Redrawing canvas with strokes:', strokesToUse);
-    console.log('Current strokes state length:', strokes.length);
-    console.log('Current strokesRef length:', strokesRef.current.length);
+    // Get current strokes from context
+    const currentStrokes = getCurrentStrokes();
+    console.log('Redrawing canvas with strokes:', currentStrokes.length);
     
     if (!canvasRef.current) {
       console.warn('Canvas ref is null during redraw');
@@ -183,18 +146,17 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     
     // Only attempt to redraw if there are strokes
-    if (strokesToUse && strokesToUse.length > 0) {
+    if (currentStrokes && currentStrokes.length > 0) {
       // Filter out any null strokes
-      const validStrokes = strokesToUse.filter(stroke =>
+      const validStrokes = currentStrokes.filter(stroke =>
         stroke !== null && stroke.points && stroke.points.length > 0
       );
       
-      console.log('Drawing', validStrokes.length, 'valid strokes out of', strokes.length, 'total');
+      console.log('Drawing', validStrokes.length, 'valid strokes');
       
       // Process each stroke one by one
       for (let i = 0; i < validStrokes.length; i++) {
         const stroke = validStrokes[i];
-        console.log('Processing stroke:', i, stroke);
         
         // Set up context for this stroke
         ctx.lineJoin = 'round';
@@ -210,14 +172,11 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
           continue;
         }
         
-        console.log('Drawing stroke with', stroke.points.length, 'points');
-        
         if (stroke.points.length === 1) {
           // Draw a dot for single clicks
           ctx.beginPath();
           ctx.arc(firstPoint.x, firstPoint.y, stroke.brushSize / 2, 0, Math.PI * 2);
           ctx.fill();
-          console.log('Drew dot at', firstPoint.x, firstPoint.y);
         } else {
           // Draw lines for multi-point strokes
           ctx.beginPath();
@@ -229,53 +188,29 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
             ctx.lineTo(point.x, point.y);
           }
           ctx.stroke();
-          console.log('Drew line with', stroke.points.length, 'points');
         }
       }
     }
     
     // Reset context to current drawing settings
     setupContext(ctx);
-  }, [strokes, setupContext]); // Removed brushSize and drawingMode dependencies since each stroke has its own
-
-  // handleUndo is already defined at the top of the component
+  }, [getCurrentStrokes, setupContext]);
 
   // Update canvas when strokes change
   useEffect(() => {
-    console.log('Strokes updated:', strokes);
-    console.log('Calling redrawCanvas due to strokes change');
     redrawCanvas();
   }, [strokes, redrawCanvas]);
   
   // Update context when drawing mode or brush size changes
   useEffect(() => {
     if (!canvasRef.current) return;
-    console.log('BRUSH SIZE EFFECT TRIGGERED', {
-      brushSize,
-      strokesCount: strokes.length,
-      strokesRefCount: strokesRef.current.length
-    });
     
     const ctx = canvasRef.current.getContext('2d');
     setupContext(ctx);
     
-    // If we have strokes in state, use those
-    if (strokes.length > 0) {
-      console.log('Using strokes state for redraw');
-      // Force a redraw by creating a new array reference
-      setStrokes(prevStrokes => [...prevStrokes]);
-    }
-    // If state is empty but we have strokes in the ref, restore them
-    else if (strokesRef.current.length > 0) {
-      console.log('RESTORING STROKES FROM REF:', strokesRef.current.length);
-      // This is the key fix - restore strokes from ref if state is empty
-      setStrokes([...strokesRef.current]);
-    }
-    // No strokes at all, just update the context
-    else {
-      console.log('No strokes to redraw');
-    }
-  }, [brushSize, drawingMode, setupContext, strokes.length]);
+    // Redraw with current settings
+    redrawCanvas();
+  }, [brushSize, drawingMode, setupContext, redrawCanvas]);
 
   // Drawing functions
   const startDrawing = (e) => {
@@ -292,7 +227,6 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
       brushSize: brushSize,
       points: [{ x: offsetX, y: offsetY }]
     };
-    console.log('Created new stroke at position:', { offsetX, offsetY });
     
     // Set up context and draw a single dot
     const ctx = canvasRef.current.getContext('2d');
@@ -300,7 +234,6 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
     ctx.beginPath();
     ctx.arc(offsetX, offsetY, brushSize / 2, 0, Math.PI * 2);
     ctx.fill();
-    console.log('Drew dot at', offsetX, offsetY);
   };
 
   const draw = (e) => {
@@ -312,10 +245,6 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
     // Add point to current stroke
     if (currentStroke.current) {
       currentStroke.current.points.push({ x: offsetX, y: offsetY });
-      // Reduce logging frequency for performance
-      if (currentStroke.current.points.length % 5 === 0) {
-        console.log('Drawing at position:', { offsetX, offsetY });
-      }
     } else {
       console.warn('currentStroke is null during draw');
     }
@@ -337,25 +266,9 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
         ...currentStroke.current,
         points: [...currentStroke.current.points] // Deep copy the points array
       };
-      console.log('Adding stroke:', strokeToAdd);
       
-      setStrokes(prevStrokes => {
-        console.log('Previous strokes:', prevStrokes);
-        // Filter out any null values from previous strokes
-        const validPrevStrokes = prevStrokes.filter(stroke => stroke !== null);
-        const newStrokes = [...validPrevStrokes, strokeToAdd];
-        console.log('New strokes array:', newStrokes);
-        
-        // Update strokesRef to maintain strokes between renders
-        strokesRef.current = newStrokes;
-        console.log('Updated strokesRef with new strokes:', newStrokes.length);
-        
-        // Also update savedStrokes in context to persist across unmounts
-        setSavedStrokes(newStrokes);
-        console.log('Updated savedStrokes in context:', newStrokes.length);
-        
-        return newStrokes;
-      });
+      // Add stroke to context
+      addStroke(strokeToAdd);
       
       // Only set to null after we've created a copy
       currentStroke.current = null;
@@ -387,15 +300,6 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
     const offsetX = (clientX - rect.left) * scaleX;
     const offsetY = (clientY - rect.top) * scaleY;
     
-    console.log('Coordinate calculation:', {
-      clientX, clientY,
-      rectLeft: rect.left, rectTop: rect.top,
-      canvasWidth: canvas.width, canvasHeight: canvas.height,
-      rectWidth: rect.width, rectHeight: rect.height,
-      scaleX, scaleY,
-      offsetX, offsetY
-    });
-    
     return { offsetX, offsetY };
   };
 
@@ -407,23 +311,13 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
       return;
     }
     
-    // Clear strokes array, ref, and context
-    setStrokes([]);
-    strokesRef.current = [];
-    setSavedStrokes([]);
-    console.log('Strokes array, ref, and context cleared');
+    // Clear strokes in context
+    clearCanvasStrokes();
     
     // Clear canvas
     const ctx = canvasRef.current.getContext('2d');
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    console.log('Canvas cleared');
   };
-
-  // Log when canvas is mounted or updated
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    console.log('Canvas element is mounted:', canvasRef.current);
-  }, [canvasRef.current]);
 
   return (
     <Box 
@@ -445,6 +339,7 @@ const DrawingCanvas = ({ imageRef, onCanvasReady }) => {
           height: '100%',
           cursor: displayImage ? 'crosshair' : 'default',
         }}
+        role="presentation"
         onMouseDown={startDrawing}
         onMouseMove={draw}
         onMouseUp={stopDrawing}

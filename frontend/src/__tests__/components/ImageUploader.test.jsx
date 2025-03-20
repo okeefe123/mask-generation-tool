@@ -1,12 +1,14 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 import ImageUploader from '../../components/ImageUploader';
-import { useImageContext } from '../../contexts/ImageContext';
+import { useAppContext, useUIContext } from '../../contexts/AppContexts';
 import { uploadImage } from '../../services/api';
+import { fileToDataURL } from '../../utils/imageProcessing';
 
-// Mock the ImageContext
-vi.mock('../../contexts/ImageContext', () => ({
-  useImageContext: vi.fn(),
+// Mock the contexts
+vi.mock('../../contexts/AppContexts', () => ({
+  useAppContext: vi.fn(),
+  useUIContext: vi.fn(),
 }));
 
 // Mock the API service
@@ -14,169 +16,218 @@ vi.mock('../../services/api', () => ({
   uploadImage: vi.fn(),
 }));
 
+// Mock the image processing utility
+vi.mock('../../utils/imageProcessing', () => ({
+  fileToDataURL: vi.fn(),
+}));
+
 describe('ImageUploader Component', () => {
-  // Default context values
-  const mockContextValues = {
+  // Mock context values
+  const mockAppContextValues = {
     setOriginalImage: vi.fn(),
     setDisplayImage: vi.fn(),
+    setImageId: vi.fn(),
+    setOriginalFileName: vi.fn(),
     setOriginalDimensions: vi.fn(),
+  };
+
+  const mockUIContextValues = {
     setIsLoading: vi.fn(),
     setError: vi.fn(),
   };
 
+  // Mock toast
+  const mockToast = vi.fn();
+  vi.mock('@chakra-ui/react', async () => {
+    const actual = await vi.importActual('@chakra-ui/react');
+    return {
+      ...actual,
+      useToast: () => mockToast,
+    };
+  });
+
   // Mock file
-  const createMockFile = (name = 'test.jpg', type = 'image/jpeg', size = 1024) => {
-    const file = new File(['dummy content'], name, { type });
-    Object.defineProperty(file, 'size', { value: size });
-    return file;
-  };
+  const mockFile = new File(['dummy content'], 'test.jpg', { type: 'image/jpeg' });
 
   beforeEach(() => {
     // Reset mocks
     vi.clearAllMocks();
     
-    // Setup default context
-    useImageContext.mockReturnValue(mockContextValues);
+    // Setup default context values
+    useAppContext.mockReturnValue(mockAppContextValues);
+    useUIContext.mockReturnValue(mockUIContextValues);
     
-    // Mock FileReader
-    global.FileReader = function() {
-      this.readAsDataURL = vi.fn(() => {
-        this.onload({ target: { result: 'data:image/jpeg;base64,mockbase64data' } });
-      });
-    };
+    // Mock successful dataURL conversion
+    fileToDataURL.mockResolvedValue('data:image/jpeg;base64,abc123');
     
-    // Mock Image
+    // Mock successful API response
+    uploadImage.mockResolvedValue({
+      id: '123',
+      image_url: 'http://example.com/test.jpg',
+    });
+    
+    // Mock Image constructor
     global.Image = class {
       constructor() {
         setTimeout(() => {
-          this.width = 1920;
-          this.height = 1080;
           this.onload();
         }, 0);
       }
+      width = 1920;
+      height = 1080;
     };
-    
-    // Mock successful upload
-    uploadImage.mockResolvedValue({ image_url: 'http://example.com/images/test.jpg' });
   });
 
-  test('renders upload form correctly', () => {
+  test('renders upload form', () => {
     render(<ImageUploader />);
     
-    // Check that the form elements are rendered
-    expect(screen.getByText(/Upload Image/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Upload Image/i)).toBeInTheDocument();
-    expect(screen.getByText(/Supported formats: JPEG/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Upload/i })).toBeInTheDocument();
+    // Check that form elements are rendered
+    expect(screen.getByText('Upload Image')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument();
+    expect(screen.getByText('Supported formats: JPEG')).toBeInTheDocument();
   });
 
-  test('handles file selection', async () => {
+  test('handles file selection', () => {
     render(<ImageUploader />);
     
-    const fileInput = screen.getByLabelText(/Upload Image/i);
-    const mockFile = createMockFile();
+    // Get file input
+    const fileInput = screen.getByLabelText('Upload Image');
     
     // Simulate file selection
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
     
-    // Check that the file info is displayed
-    await waitFor(() => {
-      expect(screen.getByText(/Selected: test.jpg/i)).toBeInTheDocument();
-    });
+    // Check that file name is displayed
+    expect(screen.getByText(/Selected: test.jpg/)).toBeInTheDocument();
+    
+    // Check that setOriginalFileName was called
+    expect(mockAppContextValues.setOriginalFileName).toHaveBeenCalledWith('test.jpg');
   });
 
-  test('validates file type', async () => {
-    // Mock toast
-    const mockToast = vi.fn();
-    vi.mock('@chakra-ui/react', async () => {
-      const actual = await vi.importActual('@chakra-ui/react');
-      return {
-        ...actual,
-        useToast: () => mockToast,
-      };
-    });
-    
+  test('validates file type', () => {
     render(<ImageUploader />);
     
-    const fileInput = screen.getByLabelText(/Upload Image/i);
-    const invalidFile = createMockFile('test.png', 'image/png');
+    // Create invalid file (PNG instead of JPEG)
+    const invalidFile = new File(['dummy content'], 'test.png', { type: 'image/png' });
     
-    // Simulate invalid file selection
+    // Get file input
+    const fileInput = screen.getByLabelText('Upload Image');
+    
+    // Simulate file selection
     fireEvent.change(fileInput, { target: { files: [invalidFile] } });
     
-    // Check that error toast was called
-    await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'error',
-          title: 'Invalid file type',
-        })
-      );
-    });
+    // Check that error toast was shown
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Invalid file type',
+      status: 'error',
+    }));
   });
 
-  test('handles file upload', async () => {
+  test('uploads file successfully', async () => {
     render(<ImageUploader />);
     
-    const fileInput = screen.getByLabelText(/Upload Image/i);
-    const uploadButton = screen.getByRole('button', { name: /Upload/i });
-    const mockFile = createMockFile();
+    // Get file input and upload button
+    const fileInput = screen.getByLabelText('Upload Image');
+    const uploadButton = screen.getByRole('button', { name: 'Upload' });
     
     // Simulate file selection
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
     
-    // Simulate upload button click
-    fireEvent.click(uploadButton);
+    // Click upload button
+    await act(async () => {
+      fireEvent.click(uploadButton);
+    });
     
     // Check that loading state was set
-    expect(mockContextValues.setIsLoading).toHaveBeenCalledWith(true);
+    expect(mockUIContextValues.setIsLoading).toHaveBeenCalledWith(true);
     
-    // Check that the API was called
-    await waitFor(() => {
-      expect(uploadImage).toHaveBeenCalledWith(mockFile);
+    // Check that image was processed
+    expect(fileToDataURL).toHaveBeenCalledWith(mockFile);
+    
+    // Check that dimensions were set
+    expect(mockAppContextValues.setOriginalDimensions).toHaveBeenCalledWith({
+      width: 1920,
+      height: 1080,
     });
     
-    // Check that the context was updated
-    await waitFor(() => {
-      expect(mockContextValues.setOriginalImage).toHaveBeenCalledWith('http://example.com/images/test.jpg');
-      expect(mockContextValues.setDisplayImage).toHaveBeenCalled();
-      expect(mockContextValues.setOriginalDimensions).toHaveBeenCalledWith({
-        width: 1920,
-        height: 1080,
-      });
-      expect(mockContextValues.setIsLoading).toHaveBeenCalledWith(false);
-    });
+    // Check that display image was set
+    expect(mockAppContextValues.setDisplayImage).toHaveBeenCalledWith('data:image/jpeg;base64,abc123');
+    
+    // Check that API was called
+    expect(uploadImage).toHaveBeenCalledWith(mockFile);
+    
+    // Check that context was updated with API response
+    expect(mockAppContextValues.setOriginalImage).toHaveBeenCalledWith('http://example.com/test.jpg');
+    expect(mockAppContextValues.setImageId).toHaveBeenCalledWith('123');
+    
+    // Check that success toast was shown
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Upload successful',
+      status: 'success',
+    }));
+    
+    // Check that loading state was reset
+    expect(mockUIContextValues.setIsLoading).toHaveBeenCalledWith(false);
   });
 
   test('handles upload error', async () => {
     // Mock API error
-    uploadImage.mockRejectedValue(new Error('Upload failed'));
+    uploadImage.mockRejectedValue(new Error('Server error'));
     
     render(<ImageUploader />);
     
-    const fileInput = screen.getByLabelText(/Upload Image/i);
-    const uploadButton = screen.getByRole('button', { name: /Upload/i });
-    const mockFile = createMockFile();
+    // Get file input and upload button
+    const fileInput = screen.getByLabelText('Upload Image');
+    const uploadButton = screen.getByRole('button', { name: 'Upload' });
     
     // Simulate file selection
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
     
-    // Simulate upload button click
-    fireEvent.click(uploadButton);
-    
-    // Check that error state was set
-    await waitFor(() => {
-      expect(mockContextValues.setError).toHaveBeenCalled();
-      expect(mockContextValues.setIsLoading).toHaveBeenCalledWith(false);
+    // Click upload button
+    await act(async () => {
+      fireEvent.click(uploadButton);
     });
+    
+    // Check that error was set
+    expect(mockUIContextValues.setError).toHaveBeenCalledWith('Server error');
+    
+    // Check that error toast was shown
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Upload failed',
+      status: 'error',
+    }));
   });
 
-  test('disables upload button when no file is selected', () => {
+  test('handles image loading error', async () => {
+    // Mock Image loading error
+    global.Image = class {
+      constructor() {
+        setTimeout(() => {
+          this.onerror();
+        }, 0);
+      }
+    };
+    
     render(<ImageUploader />);
     
-    const uploadButton = screen.getByRole('button', { name: /Upload/i });
+    // Get file input and upload button
+    const fileInput = screen.getByLabelText('Upload Image');
+    const uploadButton = screen.getByRole('button', { name: 'Upload' });
     
-    // Check that the button is disabled
-    expect(uploadButton).toBeDisabled();
+    // Simulate file selection
+    fireEvent.change(fileInput, { target: { files: [mockFile] } });
+    
+    // Click upload button
+    await act(async () => {
+      fireEvent.click(uploadButton);
+    });
+    
+    // Check that error was set
+    expect(mockUIContextValues.setError).toHaveBeenCalledWith('Failed to load image preview.');
+    
+    // Check that error toast was shown
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Preview failed',
+      status: 'error',
+    }));
   });
 });

@@ -1,12 +1,12 @@
 import { Box, Container, Heading, VStack, Text } from '@chakra-ui/react';
-import { ImageProvider } from './contexts/ImageContext';
+import { AllProvidersWrapper } from './contexts/AppContexts';
 import ImageUploader from './components/ImageUploader';
 import ImageEditor from './components/ImageEditor';
 import './App.css';
 
 function App() {
   return (
-    <ImageProvider>
+    <AllProvidersWrapper>
       <Container maxW="container.xl" py={8}>
         <VStack spacing={8} align="stretch">
           <Box textAlign="center">
@@ -22,7 +22,7 @@ function App() {
           </Box>
         </VStack>
       </Container>
-    </ImageProvider>
+    </AllProvidersWrapper>
   );
 }
 

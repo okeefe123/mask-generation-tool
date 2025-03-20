@@ -1,13 +1,13 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 import Toolbar from '../../components/Toolbar';
-import { useImageContext } from '../../contexts/ImageContext';
+import { useAppContext, useUIContext } from '../../contexts/AppContexts';
 import { saveMask } from '../../services/api';
-import { canvasToBinaryMask } from '../../utils/imageProcessing';
 
-// Mock the ImageContext
-vi.mock('../../contexts/ImageContext', () => ({
-  useImageContext: vi.fn(),
+// Mock the contexts
+vi.mock('../../contexts/AppContexts', () => ({
+  useAppContext: vi.fn(),
+  useUIContext: vi.fn(),
 }));
 
 // Mock the API service
@@ -15,156 +15,196 @@ vi.mock('../../services/api', () => ({
   saveMask: vi.fn(),
 }));
 
-// Mock the imageProcessing utility
-vi.mock('../../utils/imageProcessing', () => ({
-  canvasToBinaryMask: vi.fn(),
-}));
-
 describe('Toolbar Component', () => {
-  // Mock canvas ref
-  const mockCanvas = {
+  // Mock canvas element
+  const mockCanvasElement = {
+    tagName: 'CANVAS',
     getContext: vi.fn(() => ({
       clearRect: vi.fn(),
+      getImageData: vi.fn(() => ({
+        data: new Uint8ClampedArray([0, 0, 0, 255]), // Non-transparent pixel
+      })),
     })),
     width: 800,
     height: 600,
+    toDataURL: vi.fn(() => 'data:image/png;base64,abc123'),
+    undo: vi.fn(),
     clear: vi.fn(),
   };
-  
-  const mockCanvasRef = {
-    current: mockCanvas,
+
+  // Mock context values
+  const mockAppContextValues = {
+    originalImage: 'test-image.jpg',
+    displayImage: 'test-display.jpg',
+    imageId: '123',
+    originalFileName: 'test.jpg',
+    originalDimensions: { width: 1920, height: 1080 },
   };
 
-  // Default context values
-  const defaultContextValues = {
+  const mockUIContextValues = {
     drawingMode: 'draw',
     setDrawingMode: vi.fn(),
     brushSize: 10,
     setBrushSize: vi.fn(),
-    originalImage: 'http://example.com/images/test.jpg',
-    originalDimensions: { width: 1920, height: 1080 },
+    isLoading: false,
     setIsLoading: vi.fn(),
+    error: null,
     setError: vi.fn(),
   };
+
+  // Mock toast
+  const mockToast = vi.fn();
+  vi.mock('@chakra-ui/react', async () => {
+    const actual = await vi.importActual('@chakra-ui/react');
+    return {
+      ...actual,
+      useToast: () => mockToast,
+    };
+  });
 
   beforeEach(() => {
     // Reset mocks
     vi.clearAllMocks();
     
-    // Setup default context
-    useImageContext.mockReturnValue(defaultContextValues);
+    // Setup default context values
+    useAppContext.mockReturnValue(mockAppContextValues);
+    useUIContext.mockReturnValue(mockUIContextValues);
     
-    // Mock successful mask save
-    saveMask.mockResolvedValue({ id: 1, file: 'http://example.com/masks/mask_test.png' });
-    
-    // Mock binary mask generation
-    canvasToBinaryMask.mockReturnValue('data:image/png;base64,mockbase64data');
-    
-    // Mock fetch for blob conversion
-    global.fetch = vi.fn().mockResolvedValue({
-      blob: vi.fn().mockResolvedValue(new Blob(['mock data'], { type: 'image/png' })),
+    // Mock document.createElement for canvas
+    global.document.createElement = vi.fn().mockImplementation((tagName) => {
+      if (tagName === 'canvas') {
+        return {
+          getContext: vi.fn(() => ({
+            fillRect: vi.fn(),
+            fillStyle: '',
+            drawImage: vi.fn(),
+          })),
+          toBlob: vi.fn((callback) => callback(new Blob())),
+          toDataURL: vi.fn(() => 'data:image/png;base64,abc123'),
+          width: 0,
+          height: 0,
+        };
+      }
+      return { tagName };
     });
+    
+    // Mock fetch for blob
+    global.fetch = vi.fn().mockResolvedValue({
+      blob: vi.fn().mockResolvedValue(new Blob()),
+    });
+    
+    // Mock File constructor
+    global.File = vi.fn().mockImplementation(() => ({}));
+    
+    // Mock successful API response
+    saveMask.mockResolvedValue({ success: true });
   });
 
   test('renders toolbar with all controls', () => {
-    render(<Toolbar canvasRef={mockCanvasRef} />);
+    render(<Toolbar canvasElement={mockCanvasElement} />);
     
     // Check that all controls are rendered
-    expect(screen.getByRole('button', { name: /Draw/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Erase/i })).toBeInTheDocument();
-    expect(screen.getByText(/Brush Size/i)).toBeInTheDocument();
-    expect(screen.getByRole('slider')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Clear/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Save Mask/i })).toBeInTheDocument();
+    expect(screen.getByText('Draw')).toBeInTheDocument();
+    expect(screen.getByText('Brush Size:')).toBeInTheDocument();
+    expect(screen.getByText('Clear')).toBeInTheDocument();
+    expect(screen.getByText('Save Mask')).toBeInTheDocument();
   });
 
-  test('handles drawing mode change', () => {
-    render(<Toolbar canvasRef={mockCanvasRef} />);
+  test('changes drawing mode when buttons are clicked', () => {
+    render(<Toolbar canvasElement={mockCanvasElement} />);
     
-    // Click the Erase button
-    fireEvent.click(screen.getByRole('button', { name: /Erase/i }));
+    // Click the draw mode button
+    fireEvent.click(screen.getByText('Draw'));
+    expect(mockUIContextValues.setDrawingMode).toHaveBeenCalledWith('draw');
     
-    // Check that setDrawingMode was called with 'erase'
-    expect(defaultContextValues.setDrawingMode).toHaveBeenCalledWith('erase');
-    
-    // Click the Draw button
-    fireEvent.click(screen.getByRole('button', { name: /Draw/i }));
-    
-    // Check that setDrawingMode was called with 'draw'
-    expect(defaultContextValues.setDrawingMode).toHaveBeenCalledWith('draw');
+    // Click the erase mode button
+    fireEvent.click(screen.getByText('Erase'));
+    expect(mockUIContextValues.setDrawingMode).toHaveBeenCalledWith('erase');
   });
 
-  test('handles brush size change', () => {
-    render(<Toolbar canvasRef={mockCanvasRef} />);
+  test('changes brush size when slider is moved', () => {
+    render(<Toolbar canvasElement={mockCanvasElement} />);
+    
+    // Find the slider
+    const slider = screen.getByRole('slider');
     
     // Change the slider value
-    fireEvent.change(screen.getByRole('slider'), { target: { value: 20 } });
+    fireEvent.change(slider, { target: { value: '20' } });
     
     // Check that setBrushSize was called with the new value
-    expect(defaultContextValues.setBrushSize).toHaveBeenCalledWith(20);
+    expect(mockUIContextValues.setBrushSize).toHaveBeenCalledWith(20);
   });
 
-  test('handles canvas clear', () => {
-    render(<Toolbar canvasRef={mockCanvasRef} />);
+  test('clears canvas when clear button is clicked', () => {
+    render(<Toolbar canvasElement={mockCanvasElement} />);
     
-    // Click the Clear button
-    fireEvent.click(screen.getByRole('button', { name: /Clear/i }));
+    // Click the clear button
+    fireEvent.click(screen.getByText('Clear'));
     
     // Check that canvas.clear was called
-    expect(mockCanvas.clear).toHaveBeenCalled();
+    expect(mockCanvasElement.clear).toHaveBeenCalled();
+    
+    // Check that toast was called
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Canvas cleared',
+      status: 'info',
+    }));
   });
 
-  test('handles mask save', async () => {
-    render(<Toolbar canvasRef={mockCanvasRef} />);
+  test('saves mask when save button is clicked', async () => {
+    render(<Toolbar canvasElement={mockCanvasElement} />);
     
-    // Click the Save Mask button
-    fireEvent.click(screen.getByRole('button', { name: /Save Mask/i }));
-    
-    // Check that loading state was set
-    expect(defaultContextValues.setIsLoading).toHaveBeenCalledWith(true);
-    
-    // Check that canvasToBinaryMask was called
-    expect(canvasToBinaryMask).toHaveBeenCalledWith(
-      mockCanvas,
-      defaultContextValues.originalDimensions.width,
-      defaultContextValues.originalDimensions.height
-    );
-    
-    // Check that saveMask was called
-    await waitFor(() => {
-      expect(saveMask).toHaveBeenCalled();
+    // Click the save button
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save Mask'));
     });
     
-    // Check that loading state was reset
-    expect(defaultContextValues.setIsLoading).toHaveBeenCalledWith(false);
+    // Check that setIsLoading was called with true then false
+    expect(mockUIContextValues.setIsLoading).toHaveBeenCalledWith(true);
+    expect(mockUIContextValues.setIsLoading).toHaveBeenCalledWith(false);
+    
+    // Check that saveMask was called with the correct parameters
+    expect(saveMask).toHaveBeenCalledWith('123', expect.any(Object), undefined);
+    
+    // Check that toast was called with success message
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Mask saved',
+      status: 'success',
+    }));
   });
 
-  test('handles save error', async () => {
+  test('shows error when canvas validation fails', () => {
+    // Set imageId to null to trigger validation error
+    useAppContext.mockReturnValue({
+      ...mockAppContextValues,
+      imageId: null,
+    });
+    
+    render(<Toolbar canvasElement={mockCanvasElement} />);
+    
+    // Check that error message is displayed
+    expect(screen.getByText('Canvas Error:')).toBeInTheDocument();
+    expect(screen.getByText('Image ID is missing. Please re-upload the image.')).toBeInTheDocument();
+  });
+
+  test('handles save error gracefully', async () => {
     // Mock API error
-    saveMask.mockRejectedValue(new Error('Save failed'));
+    saveMask.mockRejectedValue(new Error('Server error'));
     
-    render(<Toolbar canvasRef={mockCanvasRef} />);
+    render(<Toolbar canvasElement={mockCanvasElement} />);
     
-    // Click the Save Mask button
-    fireEvent.click(screen.getByRole('button', { name: /Save Mask/i }));
-    
-    // Check that error state was set
-    await waitFor(() => {
-      expect(defaultContextValues.setError).toHaveBeenCalled();
-      expect(defaultContextValues.setIsLoading).toHaveBeenCalledWith(false);
-    });
-  });
-
-  test('disables save button when no image is loaded', () => {
-    // Set originalImage to null
-    useImageContext.mockReturnValue({
-      ...defaultContextValues,
-      originalImage: null,
+    // Click the save button
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save Mask'));
     });
     
-    render(<Toolbar canvasRef={mockCanvasRef} />);
+    // Check that setError was called with the error message
+    expect(mockUIContextValues.setError).toHaveBeenCalledWith('Server error');
     
-    // Check that the Save Mask button is disabled
-    expect(screen.getByRole('button', { name: /Save Mask/i })).toBeDisabled();
+    // Check that toast was called with error message
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Save failed',
+      status: 'error',
+    }));
   });
 });

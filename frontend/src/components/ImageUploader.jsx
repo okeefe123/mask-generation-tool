@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { 
   Box, 
   Button, 
@@ -11,7 +11,7 @@ import {
   useToast,
   Progress
 } from '@chakra-ui/react';
-import { useImageContext } from '../contexts/ImageContext';
+import { useAppContext, useUIContext } from '../contexts/AppContexts';
 import { uploadImage } from '../services/api';
 import { fileToDataURL } from '../utils/imageProcessing';
 
@@ -20,17 +20,22 @@ const ImageUploader = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const toast = useToast();
   
+  // Get state setters from contexts
   const {
     setOriginalImage,
     setDisplayImage,
     setImageId,
     setOriginalFileName,
     setOriginalDimensions,
+  } = useAppContext();
+  
+  const {
     setIsLoading,
     setError
-  } = useImageContext();
+  } = useUIContext();
 
-  const handleFileChange = (event) => {
+  // Handle file selection
+  const handleFileChange = useCallback((event) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -51,9 +56,10 @@ const ImageUploader = () => {
     // Store the original file name in context
     console.log('Setting original file name:', file.name);
     setOriginalFileName(file.name);
-  };
+  }, [setOriginalFileName, toast]);
 
-  const handleUpload = async () => {
+  // Handle file upload
+  const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       toast({
         title: 'No file selected',
@@ -84,10 +90,9 @@ const ImageUploader = () => {
         // Set display image for preview
         setDisplayImage(dataUrl);
         
-        // Upload to server with progress tracking
+        // Upload to server
         try {
           // Call the uploadImage function from the API service
-          // which properly sets up the FormData with the 'file' field name
           const response = await uploadImage(selectedFile);
           
           console.log('Upload response:', response);
@@ -154,7 +159,16 @@ const ImageUploader = () => {
         isClosable: true,
       });
     }
-  };
+  }, [
+    selectedFile, 
+    setDisplayImage, 
+    setError, 
+    setImageId, 
+    setIsLoading, 
+    setOriginalDimensions, 
+    setOriginalImage, 
+    toast
+  ]);
 
   return (
     <Box p={4} borderWidth="1px" borderRadius="lg" bg="white" shadow="md">
