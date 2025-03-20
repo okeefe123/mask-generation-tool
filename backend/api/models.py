@@ -153,10 +153,12 @@ class Mask(models.Model):
             # Always generate a paired filename based on the image's original filename
             # regardless of whether the file has a name or not
             if hasattr(self.file, 'content_type'):  # If file is already uploaded
-                # Use exactly the same name as the image
-                base_name = os.path.splitext(os.path.basename(self.image.original_filename))[0]
-                # Force .jpg extension for consistency
-                self.file.name = f"{base_name}.jpg"
+                # Use exactly the same name and extension as the image
+                base_name, ext = os.path.splitext(os.path.basename(self.image.original_filename))
+                # If no extension, default to .jpg
+                if not ext:
+                    ext = '.jpg'
+                self.file.name = f"{base_name}{ext}"
                 print(f"Using image filename for mask: {self.file.name}")
         
         super().save(*args, **kwargs)

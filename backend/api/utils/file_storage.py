@@ -140,11 +140,15 @@ class MaskStorage(SecureFileStorage):
         Returns:
             A sanitized filename that maintains relationship with original image
         """
-        # Extract the base name without extension
-        base_name = os.path.splitext(os.path.basename(name))[0]
+        # Extract the base name and extension
+        base_name, ext = os.path.splitext(os.path.basename(name))
         
-        # Force .jpg extension for consistency
-        return f"{safe_filename(base_name)}.jpg"
+        # If no extension, default to .jpg
+        if not ext:
+            ext = '.jpg'
+        
+        # Return sanitized name with original extension
+        return f"{safe_filename(base_name)}{ext}"
 
 
 def generate_paired_filename(original_filename):
@@ -164,8 +168,12 @@ def generate_paired_filename(original_filename):
     # Create a slug from the original name
     slug = slugify(name)
     
-    # Generate a new filename with the same name but .jpg extension
-    return f"{slug}.jpg"
+    # If no extension, default to .jpg
+    if not ext:
+        ext = '.jpg'
+    
+    # Generate a new filename with the same name and original extension
+    return f"{slug}{ext}"
 
 
 def validate_file_type(file, allowed_types):

@@ -187,8 +187,22 @@ const Toolbar = ({ canvasElement }) => {
         throw new Error(`Canvas error: ${err.message}`);
       }
       
+      // Determine file type based on original filename
+      let fileType = 'image/jpeg';
+      let maskFileName;
+      
+      if (originalFileName) {
+        const lastDotIndex = originalFileName.lastIndexOf('.');
+        const extension = lastDotIndex > 0 ? originalFileName.substring(lastDotIndex) : '.jpg';
+        
+        // Set the correct MIME type based on extension
+        if (extension.toLowerCase() === '.png') {
+          fileType = 'image/png';
+        }
+      }
+      
       // Get the image as data URL and convert to blob
-      const dataUrl = tempCanvas.toDataURL('image/png');
+      const dataUrl = tempCanvas.toDataURL(fileType);
       const response = await fetch(dataUrl);
       const blob = await response.blob();
       
@@ -197,20 +211,24 @@ const Toolbar = ({ canvasElement }) => {
       }
       
       // Generate mask filename based on original filename
-      let maskFileName;
+      
       if (originalFileName) {
-        // Extract base name without extension and add mask prefix
-        const baseName = originalFileName.replace(/\.[^/.]+$/, ""); // Remove extension
-        maskFileName = `mask_${baseName}.png`;
-        console.log('Using original file name for mask:', maskFileName);
+        // Extract base name and extension
+        const lastDotIndex = originalFileName.lastIndexOf('.');
+        const baseName = lastDotIndex > 0 ? originalFileName.substring(0, lastDotIndex) : originalFileName;
+        const extension = lastDotIndex > 0 ? originalFileName.substring(lastDotIndex) : '.jpg';
+        
+        // Use the same extension as the original file
+        maskFileName = `${baseName}${extension}`;
+        console.log('Using original file name and extension for mask:', maskFileName);
       } else {
         // Fallback to using ID if original filename is not available
-        maskFileName = `mask_${imageId}.png`;
+        maskFileName = `${imageId}.jpg`;
         console.log('Original file name not available, using ID for mask:', maskFileName);
       }
       
-      // Create file with the generated name
-      const file = new File([blob], maskFileName, { type: 'image/png' });
+      // Create file with the generated name and matching type
+      const file = new File([blob], maskFileName, { type: fileType });
       
       // Send to server using the numeric ID
       return await saveMask(imageId, file);
