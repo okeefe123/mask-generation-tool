@@ -63,20 +63,25 @@ class SecureFileStorage(FileSystemStorage):
     
     def get_available_name(self, name, max_length=None):
         """
-        Return a filename that's not taken in the storage location.
+        Return the given name without checking for availability.
+        
+        This allows files to be overwritten rather than renamed.
         
         Args:
             name: Desired filename
             max_length: Maximum length of the filename
             
         Returns:
-            An available filename
+            The original filename
         """
         # First sanitize the name
         name = self.get_valid_name(name)
         
-        # Then ensure it's available
-        return super().get_available_name(name, max_length)
+        # If the file exists, delete it
+        if self.exists(name):
+            self.delete(name)
+        
+        return name
 
 
 class ImageStorage(SecureFileStorage):
@@ -89,6 +94,29 @@ class ImageStorage(SecureFileStorage):
             base_url=f"{settings.MEDIA_URL}images/",
             file_types=['.jpg', '.jpeg', '.png']
         )
+    
+    def get_valid_name(self, name):
+        """
+        Override to preserve original filename while ensuring it's safe.
+        
+        Args:
+            name: Original filename
+            
+        Returns:
+            A sanitized version of the original filename
+        """
+        # Extract extension and base name
+        base_name = os.path.basename(name)
+        name, ext = os.path.splitext(base_name)
+        
+        # Create a safe version of the original name
+        safe_name = slugify(name)
+        
+        # If the name is empty after slugify, use a timestamp
+        if not safe_name:
+            safe_name = str(uuid.uuid4())[:8]
+        
+        return f"{safe_name}{ext.lower()}"
 
 
 class MaskStorage(SecureFileStorage):
@@ -101,15 +129,30 @@ class MaskStorage(SecureFileStorage):
             base_url=f"{settings.MEDIA_URL}masks/",
             file_types=['.png', '.jpg', '.jpeg']
         )
+    
+    def get_valid_name(self, name):
+        """
+        Override to use original filename pattern instead of UUID.
+        
+        Args:
+            name: Original filename
+            
+        Returns:
+            A sanitized filename that maintains relationship with original image
+        """
+        # Extract the base name without extension
+        base_name = os.path.splitext(os.path.basename(name))[0]
+        
+        # Force .jpg extension for consistency
+        return f"{safe_filename(base_name)}.jpg"
 
 
-def generate_paired_filename(original_filename, prefix='mask_'):
+def generate_paired_filename(original_filename):
     """
     Generate a filename for a related file (e.g., a mask for an image).
     
     Args:
         original_filename: The filename of the original file
-        prefix: A prefix to add to the new filename
         
     Returns:
         A new filename that maintains a relationship with the original
@@ -121,8 +164,8 @@ def generate_paired_filename(original_filename, prefix='mask_'):
     # Create a slug from the original name
     slug = slugify(name)
     
-    # Generate a new filename with the prefix and original extension
-    return f"{prefix}{slug}{ext}"
+    # Generate a new filename with the same name but .jpg extension
+    return f"{slug}.jpg"
 
 
 def validate_file_type(file, allowed_types):

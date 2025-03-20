@@ -8,6 +8,7 @@ export const ImageProvider = ({ children }) => {
   const [originalImage, setOriginalImage] = useState(null);
   const [displayImage, setDisplayImage] = useState(null);
   const [imageId, setImageId] = useState(null); // Add image ID from backend
+  const [originalFileName, setOriginalFileName] = useState(null); // Store original file name
   const [originalDimensions, setOriginalDimensions] = useState({ width: 0, height: 0 });
   const [scaleFactor, setScaleFactor] = useState(1);
   const [drawingMode, setDrawingMode] = useState('draw'); // 'draw' or 'erase'
@@ -23,6 +24,7 @@ export const ImageProvider = ({ children }) => {
     setOriginalImage(null);
     setDisplayImage(null);
     setImageId(null);
+    setOriginalFileName(null); // Reset original file name
     setOriginalDimensions({ width: 0, height: 0 });
     setScaleFactor(1);
     setDrawingMode('draw');
@@ -50,6 +52,8 @@ export const ImageProvider = ({ children }) => {
     setDisplayImage,
     imageId,
     setImageId,
+    originalFileName,
+    setOriginalFileName,
     originalDimensions,
     setOriginalDimensions,
     scaleFactor,

@@ -12,7 +12,7 @@ from django.db import models
 from django.conf import settings
 from django.dispatch import receiver
 from django.db.models.signals import pre_delete
-from .utils.file_storage import ImageStorage, MaskStorage, generate_paired_filename
+from .utils.file_storage import ImageStorage, MaskStorage
 
 # Create storage instances
 image_storage = ImageStorage()
@@ -98,6 +98,29 @@ class Image(models.Model):
         else:
             self.metadata_json = None
     
+    def save(self, *args, **kwargs):
+        """
+        Override save method to preserve original filename.
+        
+        This ensures that uploaded images maintain their original names (sanitized).
+        """
+        if hasattr(self.file, 'content_type'):  # If file is already uploaded
+            # Get the original extension
+            ext = os.path.splitext(self.file.name)[1].lower()
+            if not ext:  # Default to .jpg if no extension
+                ext = '.jpg'
+            
+            # Use the original filename (stored before save) if available
+            if self.original_filename:
+                # Get base name without extension and path
+                base_name = os.path.splitext(os.path.basename(self.original_filename))[0]
+                # Set the file name before saving
+                if hasattr(self.file, 'name'):
+                    self.file.name = f"{base_name}{ext}"
+                    print(f"Preserving original filename for image: {self.file.name}")
+        
+        super().save(*args, **kwargs)
+
     def __str__(self):
         """String representation of the Image model."""
         return f"Image: {self.original_filename}"
@@ -126,15 +149,15 @@ class Mask(models.Model):
         
         This ensures that masks have filenames that relate to their source images.
         """
-        if self.image and not self.file.name:
-            # If this is a new mask being created with a reference to an image
-            # Generate a paired filename based on the image's original filename
+        if self.image:
+            # Always generate a paired filename based on the image's original filename
+            # regardless of whether the file has a name or not
             if hasattr(self.file, 'content_type'):  # If file is already uploaded
-                ext = os.path.splitext(self.file.name)[1].lower()
-                paired_name = generate_paired_filename(self.image.original_filename)
-                # Ensure the extension matches the uploaded file
-                paired_name = os.path.splitext(paired_name)[0] + ext
-                self.file.name = paired_name
+                # Use exactly the same name as the image
+                base_name = os.path.splitext(os.path.basename(self.image.original_filename))[0]
+                # Force .jpg extension for consistency
+                self.file.name = f"{base_name}.jpg"
+                print(f"Using image filename for mask: {self.file.name}")
         
         super().save(*args, **kwargs)
     

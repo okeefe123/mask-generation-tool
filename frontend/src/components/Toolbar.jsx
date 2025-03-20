@@ -39,6 +39,7 @@ const Toolbar = ({ canvasElement }) => {
     originalImage,
     displayImage,
     imageId,
+    originalFileName,
     originalDimensions,
     setIsLoading,
     setError,
@@ -195,10 +196,21 @@ const Toolbar = ({ canvasElement }) => {
         throw new Error("Image ID is missing. Please re-upload the image.");
       }
       
-      console.log('Using image ID for mask:', imageId);
+      // Generate mask filename based on original filename
+      let maskFileName;
+      if (originalFileName) {
+        // Extract base name without extension and add mask prefix
+        const baseName = originalFileName.replace(/\.[^/.]+$/, ""); // Remove extension
+        maskFileName = `mask_${baseName}.png`;
+        console.log('Using original file name for mask:', maskFileName);
+      } else {
+        // Fallback to using ID if original filename is not available
+        maskFileName = `mask_${imageId}.png`;
+        console.log('Original file name not available, using ID for mask:', maskFileName);
+      }
       
-      // Create file
-      const file = new File([blob], `mask_${imageId}.png`, { type: 'image/png' });
+      // Create file with the generated name
+      const file = new File([blob], maskFileName, { type: 'image/png' });
       
       // Send to server using the numeric ID
       return await saveMask(imageId, file);

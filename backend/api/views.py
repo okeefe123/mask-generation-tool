@@ -105,6 +105,9 @@ class MaskSaveView(APIView):
         
         # Save the mask
         try:
+            # Get the original file name from the image
+            print(f"Creating mask for image: {image.original_filename}")
+            
             # Create the mask object directly
             mask = Mask.objects.create(
                 file=mask_data['file'],
@@ -112,6 +115,8 @@ class MaskSaveView(APIView):
                 original_width=mask_data['original_width'],
                 original_height=mask_data['original_height']
             )
+            
+            print(f"Created mask with filename: {mask.file.name}")
             
             # Return serialized data
             serializer = MaskSerializer(mask)

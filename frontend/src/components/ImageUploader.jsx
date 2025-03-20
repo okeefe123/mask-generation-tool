@@ -20,13 +20,14 @@ const ImageUploader = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const toast = useToast();
   
-  const { 
-    setOriginalImage, 
+  const {
+    setOriginalImage,
     setDisplayImage,
     setImageId,
-    setOriginalDimensions, 
-    setIsLoading, 
-    setError 
+    setOriginalFileName,
+    setOriginalDimensions,
+    setIsLoading,
+    setError
   } = useImageContext();
 
   const handleFileChange = (event) => {
@@ -46,6 +47,10 @@ const ImageUploader = () => {
     }
 
     setSelectedFile(file);
+    
+    // Store the original file name in context
+    console.log('Setting original file name:', file.name);
+    setOriginalFileName(file.name);
   };
 
   const handleUpload = async () => {
