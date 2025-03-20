@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useRef } from 'react';
 
 const ImageContext = createContext();
 
@@ -14,6 +14,9 @@ export const ImageProvider = ({ children }) => {
   const [brushSize, setBrushSize] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Add persistent strokes storage that survives component unmounts
+  const [savedStrokes, setSavedStrokes] = useState([]);
 
   // Reset all state
   const resetState = () => {
@@ -26,6 +29,7 @@ export const ImageProvider = ({ children }) => {
     setBrushSize(10);
     setIsLoading(false);
     setError(null);
+    setSavedStrokes([]); // Reset saved strokes
   };
 
   // Calculate scale factor based on viewport and image dimensions
@@ -60,6 +64,9 @@ export const ImageProvider = ({ children }) => {
     setError,
     resetState,
     calculateScaleFactor,
+    // Add saved strokes to context
+    savedStrokes,
+    setSavedStrokes,
   };
 
   return <ImageContext.Provider value={value}>{children}</ImageContext.Provider>;

@@ -139,17 +139,18 @@ const Toolbar = ({ canvasElement }) => {
       }
       
       // Get canvas and create a temp canvas for processing
-      const canvas = document.createElement('canvas');
-      canvas.width = originalDimensions.width;
-      canvas.height = originalDimensions.height;
-      const ctx = canvas.getContext('2d');
+      // IMPORTANT: We use a separate canvas for saving to avoid affecting the original
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = originalDimensions.width;
+      tempCanvas.height = originalDimensions.height;
+      const tempCtx = tempCanvas.getContext('2d');
       
       // Fill with black (background)
-      ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      tempCtx.fillStyle = 'black';
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
       
       // Draw white where there was drawing on the original canvas
-      ctx.fillStyle = 'white';
+      tempCtx.fillStyle = 'white';
       
       // Get canvas context and image data
       try {
@@ -175,16 +176,18 @@ const Toolbar = ({ canvasElement }) => {
           throw new Error("Please draw something before saving");
         }
         
-        // Scale and draw the canvas
-        ctx.drawImage(canvasElement, 0, 0, canvasElement.width, canvasElement.height, 
-                      0, 0, canvas.width, canvas.height);
+        console.log('Saving mask from canvas - preserving original strokes');
+        
+        // Scale and draw the canvas to our temporary canvas (not affecting the original)
+        tempCtx.drawImage(canvasElement, 0, 0, canvasElement.width, canvasElement.height,
+                      0, 0, tempCanvas.width, tempCanvas.height);
       } catch (err) {
         console.error('Canvas operation error:', err);
         throw new Error(`Canvas error: ${err.message}`);
       }
       
       // Get the image as data URL and convert to blob
-      const dataUrl = canvas.toDataURL('image/png');
+      const dataUrl = tempCanvas.toDataURL('image/png');
       const response = await fetch(dataUrl);
       const blob = await response.blob();
       
@@ -223,9 +226,14 @@ const Toolbar = ({ canvasElement }) => {
         return;
       }
       
+      console.log('Starting save operation - preserving strokes');
+      
       // Use our direct canvas function
       const result = await saveCanvasAsMask();
       console.log('Save result:', result);
+      
+      // Important: We don't clear the canvas after saving
+      console.log('Save completed - strokes should remain visible');
       
       toast({
         title: 'Mask saved',
