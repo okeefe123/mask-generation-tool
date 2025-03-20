@@ -6,7 +6,6 @@ import Workspace from './components/layout/Workspace';
 import StatusFooter from './components/layout/StatusFooter';
 import ToolPanel from './components/tools/ToolPanel';
 import CanvasArea from './components/canvas/CanvasArea';
-import Toolbar from './components/Toolbar';
 import theme from './theme/theme';
 import './App.css';
 
@@ -23,11 +22,10 @@ function App() {
         <Box minH="100vh" display="flex" flexDirection="column">
           <AppHeader />
           <Workspace
-            toolPanel={<ToolPanel />}
+            toolPanel={<ToolPanel canvasElement={canvasElement} />}
             canvasArea={<CanvasArea onCanvasReady={handleCanvasReady} />}
           />
           <StatusFooter />
-          {canvasElement && <Toolbar canvasElement={canvasElement} />}
         </Box>
       </AllProvidersWrapper>
     </ChakraProvider>

@@ -3,26 +3,28 @@ import { useCanvasContext } from '../../contexts/CanvasContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { useUIContext } from '../../contexts/UIContext';
 
-const ActionButtons = () => {
-  const { clearCanvas, handleUndo } = useCanvasContext();
-  const { setIsLoading, setStatusMessage, setError } = useUIContext();
+const ActionButtons = ({ onSave, isSaving, canvasElement, canvasError }) => {
+  const { clearCanvas, handleUndo: contextHandleUndo } = useCanvasContext();
+  const { setStatusMessage } = useUIContext();
   const { displayImage } = useAppContext();
 
-  const handleSaveMask = async () => {
-    if (!displayImage) return;
-    
-    try {
-      setIsLoading(true);
-      setStatusMessage('Saving mask...');
-      // This is a placeholder for the actual save functionality
-      // In a real implementation, this would call an API to save the mask
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      setStatusMessage('Mask saved successfully');
-    } catch (error) {
-      setError('Failed to save mask: ' + (error.message || 'Unknown error'));
-      setStatusMessage(`Error saving mask`);
-    } finally {
-      setIsLoading(false);
+  const handleClear = () => {
+    if (canvasElement && canvasElement.clear) {
+      canvasElement.clear();
+      setStatusMessage('Canvas cleared');
+    } else if (clearCanvas) {
+      clearCanvas();
+      setStatusMessage('Canvas cleared');
+    }
+  };
+
+  const handleUndo = () => {
+    if (canvasElement && canvasElement.undo) {
+      canvasElement.undo();
+      setStatusMessage('Undid last stroke');
+    } else if (contextHandleUndo) {
+      contextHandleUndo();
+      setStatusMessage('Undid last stroke');
     }
   };
 
@@ -35,6 +37,7 @@ const ActionButtons = () => {
             size="sm"
             onClick={handleUndo}
             flex="1"
+            isDisabled={!!canvasError}
           >
             Undo
           </Button>
@@ -43,8 +46,9 @@ const ActionButtons = () => {
           <Button
             colorScheme="gray"
             size="sm"
-            onClick={clearCanvas}
+            onClick={handleClear}
             flex="1"
+            isDisabled={!!canvasError}
           >
             Clear
           </Button>
@@ -53,9 +57,12 @@ const ActionButtons = () => {
       <Tooltip label="Save mask to server" placement="top">
         <Button
           colorScheme="brand"
-          onClick={handleSaveMask}
+          onClick={onSave}
+          isLoading={isSaving}
+          loadingText="Saving..."
           size="md"
           width="100%"
+          isDisabled={!!canvasError}
         >
           Save Mask
         </Button>

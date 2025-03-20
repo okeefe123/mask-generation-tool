@@ -172,6 +172,15 @@ const DrawingCanvas = ({ onCanvasReady }) => {
       
       console.log('Drawing', validStrokes.length, 'valid strokes');
       
+      // Create a temporary canvas to track areas that have been drawn on
+      // This helps prevent opacity layering while maintaining visual feedback
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvasRef.current.width;
+      tempCanvas.height = canvasRef.current.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.fillStyle = 'black';
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      
       // Process each stroke one by one
       for (let i = 0; i < validStrokes.length; i++) {
         const stroke = validStrokes[i];
@@ -269,10 +278,20 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     
     // Ensure context is properly set up
     setupContext(ctx);
+    
+    // Set a consistent opacity - no layering effect
+    // This ensures the opacity is consistent regardless of how many times we draw in the same area
+    if (drawingMode === 'draw') {
+      ctx.globalAlpha = 0.7; // Same opacity as we use in strokeStyle for visual consistency
+    }
+    
     ctx.beginPath();
     ctx.moveTo(lastPosition.x, lastPosition.y);
     ctx.lineTo(offsetX, offsetY);
     ctx.stroke();
+    
+    // Reset globalAlpha to default
+    ctx.globalAlpha = 1.0;
     
     setLastPosition({ x: offsetX, y: offsetY });
   };
