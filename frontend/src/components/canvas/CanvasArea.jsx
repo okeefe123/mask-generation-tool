@@ -4,6 +4,13 @@ import { useUIContext } from '../../contexts/UIContext';
 import { useState, useEffect } from 'react';
 import DrawingCanvas from '../DrawingCanvas';
 
+/**
+ * Component that renders the canvas area where images are displayed and edited.
+ * 
+ * @param {Object} props - Component properties
+ * @param {Function} props.onCanvasReady - Callback when canvas is ready
+ * @returns {JSX.Element} The rendered CanvasArea component
+ */
 const CanvasArea = ({ onCanvasReady }) => {
   const { displayImage, originalDimensions } = useImageContext();
   const { isLoading, error } = useUIContext();
@@ -105,7 +112,7 @@ const CanvasArea = ({ onCanvasReady }) => {
               aspectRatio: originalDimensions.width && originalDimensions.height
                 ? `${originalDimensions.width} / ${originalDimensions.height}`
                 : 'auto',
-              width: originalDimensions.width ? 'min(100%, 1200px)' : 'auto', // Reasonable max width
+              width: originalDimensions.width ? 'min(100%, 2000px)' : 'auto',
               height: 'auto',
             }
           }}

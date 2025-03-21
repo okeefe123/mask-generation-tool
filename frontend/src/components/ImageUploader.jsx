@@ -463,23 +463,24 @@ const ImageUploader = () => {
         {/* Image Preview Section - Shows after selection but before opening */}
         {previewImage && (
           <Box 
-            mb={3} 
-            p={2} 
+            mb={4} 
+            p={3} 
             borderWidth="1px" 
             borderRadius="md" 
             borderColor="gray.200"
             bg="gray.50"
+            boxShadow="sm"
           >
-            <Flex direction={{ base: "column", sm: "row" }} alignItems="center">
+            <Flex direction="column" alignItems="center">
               <Box 
-                minW="80px" 
-                h="80px" 
-                mr={{ base: 0, sm: 3 }} 
-                mb={{ base: 2, sm: 0 }}
+                width="175px" 
+                height="175px" 
+                mb={3}
                 position="relative"
-                borderRadius="md"
+                borderRadius="sm"
                 overflow="hidden"
                 bg="gray.100"
+                boxShadow="inner"
               >
                 <ChakraImage
                   src={previewImage.file}
@@ -487,18 +488,18 @@ const ImageUploader = () => {
                   objectFit="contain"
                   w="100%"
                   h="100%"
-                  fallbackSrc="https://via.placeholder.com/80?text=Image"
+                  fallbackSrc="https://via.placeholder.com/120?text=Image"
                   onError={(e) => {
                     console.error("Error loading image preview");
                     e.target.src = getFullImageUrl(previewImage.file);
                   }}
                 />
               </Box>
-              <Box flex="1">
-                <Text fontSize="xs" fontWeight="medium" color="gray.700">
+              <Box textAlign="center" width="100%" px={2}>
+                <Text fontSize="sm" fontWeight="medium" color="gray.700" isTruncated maxWidth="100%">
                   {previewImage.original_filename}
                 </Text>
-                <Text fontSize="xs" color="gray.600">
+                <Text fontSize="xs" color="gray.600" mt={1}>
                   {previewImage.width} × {previewImage.height} px
                 </Text>
               </Box>

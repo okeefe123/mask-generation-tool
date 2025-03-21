@@ -316,20 +316,17 @@ export const handleSaveMask = async (canvasElement, imageId, originalImage, toas
     const maskData = await new Promise((resolve, reject) => {
       canvasElement.toBlob((blob) => {
         if (blob) {
-          resolve(blob);
+          // Create a File object from the blob with a proper name
+          const maskFile = new File([blob], 'mask.png', { type: 'image/png' });
+          resolve(maskFile);
         } else {
           reject(new Error('Failed to convert canvas to blob'));
         }
       }, 'image/png');
     });
     
-    // Create a form data object to send to the server
-    const formData = new FormData();
-    formData.append('mask', maskData, 'mask.png');
-    formData.append('image_id', imageId);
-    
-    // Call the API to save the mask
-    const response = await saveMask(formData);
+    // Call the API with the correct parameters (imageId, maskFile)
+    const response = await saveMask(imageId, maskData);
     
     toast({
       title: 'Mask saved',
