@@ -12,7 +12,6 @@ import {
   useToast,
   Progress,
   Select,
-  Checkbox,
   Divider,
   Badge,
   Stat,
@@ -27,12 +26,18 @@ import {
   ModalBody,
   ModalCloseButton,
   Image as ChakraImage,
+  SimpleGrid,
 } from '@chakra-ui/react';
 import { useUIContext } from '../contexts/AppContexts';
 import { useImageContext } from '../contexts/AppContexts';
 import { uploadImage, uploadMultipleImages } from '../services/api';
 import { fileToDataURL } from '../utils/imageProcessing';
 
+/**
+ * Component for uploading and selecting images.
+ * 
+ * @returns {JSX.Element} The rendered ImageUploader component
+ */
 const ImageUploader = () => {
   // Local state
   const [selectedFile, setSelectedFile] = useState(null);
@@ -330,85 +335,107 @@ const ImageUploader = () => {
   }, []);
 
   return (
-    <Box p={4} borderWidth="1px" borderRadius="lg" bg="white" shadow="md" width="100%">
-      <VStack spacing={4} align="stretch" width="100%">
-        <HStack spacing={4}>
-          <FormControl flex="1">
-            <FormLabel>Upload Image</FormLabel>
+    <VStack spacing={5} align="stretch" width="100%">
+      {/* Upload Section */}
+      <Box>
+        <SimpleGrid columns={2} spacing={3} mb={2}>
+          <Box>
+            <Button 
+              as="label" 
+              htmlFor="file-upload"
+              size="md"
+              width="full"
+              colorScheme="blue"
+              variant="outline"
+              cursor="pointer"
+              py={5}
+            >
+              Upload Image
+            </Button>
             <Input
+              id="file-upload"
               type="file"
               accept=".jpg,.jpeg,.mpo"
               onChange={handleFileChange}
-              p={1}
-              width="100%"
+              display="none"
             />
-          </FormControl>
+          </Box>
           
-          <FormControl flex="1">
-            <FormLabel>Upload Folder</FormLabel>
+          <Box>
+            <Button 
+              as="label" 
+              htmlFor="folder-upload"
+              size="md"
+              width="full"
+              colorScheme="blue"
+              variant="outline"
+              cursor="pointer"
+              py={5}
+            >
+              Upload Folder
+            </Button>
             <Input
+              id="folder-upload"
               type="file"
               accept=".jpg,.jpeg,.mpo"
               onChange={handleDirectoryChange}
-              p={1}
-              width="100%"
+              display="none"
               webkitdirectory="true"
               directory="true"
               multiple
             />
-          </FormControl>
-        </HStack>
+          </Box>
+        </SimpleGrid>
         
-        <Text fontSize="sm" color="gray.500">
+        <Text fontSize="xs" color="gray.500" mb={3} textAlign="center">
           Supported formats: JPEG, MPO (first layer will be extracted)
         </Text>
         
         {selectedFile && (
-          <Text fontSize="sm">
+          <Text fontSize="sm" mb={2}>
             Selected: {selectedFile.name} ({Math.round(selectedFile.size / 1024)} KB)
           </Text>
         )}
         
         {selectedFiles.length > 0 && (
-          <Text fontSize="sm">
+          <Text fontSize="sm" mb={2}>
             Selected Folder: {selectedFiles.length} images found
           </Text>
         )}
         
         {uploadProgress > 0 && uploadProgress < 100 && (
-          <Progress value={uploadProgress} size="sm" colorScheme="blue" />
+          <Progress value={uploadProgress} size="sm" colorScheme="blue" mb={3} />
         )}
         
-        <Center>
-          <HStack width="100%">
-            <Button
-              colorScheme="blue"
-              onClick={handleSingleUpload}
-              isLoading={isLoading && !isDirectoryUpload}
-              loadingText="Uploading..."
-              isDisabled={!selectedFile || isDirectoryUpload || isLoading}
-              width="100%"
-            >
-              Upload File
-            </Button>
-            
-            <Button
-              colorScheme="teal"
-              onClick={handleBatchUpload}
-              isLoading={isLoading && isDirectoryUpload}
-              loadingText="Uploading Folder..."
-              isDisabled={selectedFiles.length === 0 || !isDirectoryUpload || isLoading}
-              width="100%"
-            >
-              Upload Folder
-            </Button>
-          </HStack>
-        </Center>
-        
-        <Divider my={2} />
-        
-        <FormControl>
-          <FormLabel>
+        <SimpleGrid columns={2} spacing={3}>
+          <Button
+            colorScheme="blue"
+            onClick={handleSingleUpload}
+            isLoading={isLoading && !isDirectoryUpload}
+            loadingText="Uploading..."
+            isDisabled={!selectedFile || isDirectoryUpload || isLoading}
+          >
+            Confirm File <br></br> Upload
+          </Button>
+          
+          <Button
+            colorScheme="teal"
+            onClick={handleBatchUpload}
+            isLoading={isLoading && isDirectoryUpload}
+            loadingText="Uploading..."
+            isDisabled={selectedFiles.length === 0 || !isDirectoryUpload || isLoading}
+          >
+            Confirm Folder <br></br> Upload
+          </Button>
+        </SimpleGrid>
+      </Box>
+      
+      <Divider />
+      
+      {/* Image Selection Section */}
+      <Box>
+        <FormControl mb={3}>
+          <FormLabel fontSize="sm" fontWeight="medium">
             Select Image to Annotate
             {isLoadingImages && <Badge ml={2} colorScheme="blue">Loading...</Badge>}
           </FormLabel>
@@ -417,6 +444,7 @@ const ImageUploader = () => {
             onChange={handleImageSelect}
             placeholder="Select an image"
             isDisabled={availableImages.length === 0 || isLoadingImages}
+            size="sm"
           >
             {availableImages.map((image, index) => (
               <option key={image.id} value={index}>
@@ -425,7 +453,7 @@ const ImageUploader = () => {
             ))}
           </Select>
           {availableImages.length === 0 && !isLoadingImages && (
-            <Text fontSize="sm" color="orange.500" mt={1}>
+            <Text fontSize="xs" color="orange.500" mt={1}>
               No images available for annotation. Images with existing masks are filtered out.
             </Text>
           )}
@@ -459,57 +487,11 @@ const ImageUploader = () => {
           }}
           isDisabled={selectedImageIndex < 0 || isLoadingImages}
           width="100%"
-          mt={2}
+          size="md"
         >
           Open Selected Image
         </Button>
-        
-        {/* Preview of selected image from dropdown if available */}
-        {previewImage && (
-          <Box mt={4} p={2} borderWidth="1px" borderRadius="md">
-            <Text fontSize="sm" fontWeight="bold" mb={2}>
-              Selected Image Preview:
-            </Text>
-            <Text fontSize="xs" color="gray.500" mb={2}>
-              Image name: {previewImage.original_filename}
-              <br />
-              Dimensions: {previewImage.width}x{previewImage.height}
-              <br />
-              URL path: {previewImage.file}
-            </Text>
-            <ChakraImage
-              src={previewImage.file}
-              alt={previewImage.original_filename}
-              maxH="200px"
-              mx="auto"
-              onError={(e) => {
-                // If direct file path fails, try with getFullImageUrl
-                console.error("Error loading image preview with direct path. Trying with getFullImageUrl");
-                e.target.src = getFullImageUrl(previewImage.file);
-                
-                // Add a second error handler in case the fixed URL also fails
-                e.target.onerror = () => {
-                  console.error("Error loading image preview with both methods:",
-                    previewImage.file,
-                    getFullImageUrl(previewImage.file));
-                  toast({
-                    title: 'Image preview error',
-                    description: 'Could not load image preview. The URL may be incorrect.',
-                    status: 'error',
-                    duration: 5000,
-                    isClosable: true,
-                  });
-                };
-              }}
-              fallback={
-                <Box textAlign="center" p={4}>
-                  <Text>Image preview not available</Text>
-                </Box>
-              }
-            />
-          </Box>
-        )}
-      </VStack>
+      </Box>
       
       {/* Upload Results Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
@@ -545,7 +527,7 @@ const ImageUploader = () => {
           </ModalBody>
         </ModalContent>
       </Modal>
-    </Box>
+    </VStack>
   );
 };
 

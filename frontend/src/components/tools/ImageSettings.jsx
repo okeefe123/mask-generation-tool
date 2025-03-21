@@ -1,4 +1,4 @@
-import { VStack, Box, Heading, Badge } from '@chakra-ui/react';
+import { VStack, Box } from '@chakra-ui/react';
 import { useImageContext } from '../../contexts/AppContexts';
 import ImageUploader from '../ImageUploader';
 
@@ -12,27 +12,13 @@ const ImageSettings = () => {
   
   return (
     <VStack
-      spacing={4}
+      spacing={6}
       align="stretch"
       height="100%"
       width="100%"
+      pt={4}
     >
       <Box>
-        <Heading
-          size="md"
-          mb={3}
-          color="gray.700"
-          fontWeight="semibold"
-          display="flex"
-          alignItems="center"
-        >
-          Image
-          {!displayImage && (
-            <Badge ml={2} colorScheme="orange" variant="subtle">
-              Required
-            </Badge>
-          )}
-        </Heading>
         <ImageUploader />
       </Box>
       
