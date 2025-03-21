@@ -30,7 +30,7 @@ import {
   Flex,
 } from '@chakra-ui/react';
 import { useUIContext } from '../contexts/AppContexts';
-import { useImageContext } from '../contexts/AppContexts';
+import { useImageContext, useCanvasContext } from '../contexts/AppContexts';
 import { uploadImage, uploadMultipleImages } from '../services/api';
 import { fileToDataURL } from '../utils/imageProcessing';
 
@@ -68,6 +68,9 @@ const ImageUploader = () => {
     setSavedStrokes,
     setInitialized,
   } = useImageContext();
+  
+  // Get canvas context functions 
+  const { clearCanvas } = useCanvasContext();
   
   const {
     isLoading,
@@ -345,21 +348,12 @@ const ImageUploader = () => {
       console.log('Opening image in canvas, performing full reset first');
 
       // Clear any existing canvas drawings first - this is crucial
-      // This ensures a fresh canvas for the new image
+      // This uses the same clearCanvas function as the "Clear" button in DrawingTools
+      clearCanvas();
+      
+      // Reset initialization state to force redraw with new image
       setSavedStrokes([]);
       setInitialized(false);
-      
-      // Get access to the canvas directly if possible (for more immediate clearing)
-      const canvasElement = document.querySelector('canvas[data-component="DrawingCanvas"]');
-      if (canvasElement) {
-        try {
-          const ctx = canvasElement.getContext('2d');
-          ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-          console.log('Canvas cleared directly via DOM access');
-        } catch (err) {
-          console.warn('Could not clear canvas directly:', err);
-        }
-      }
       
       // Actually load the image into the canvas
       const selectedImage = availableImages[selectedImageIndex];
@@ -373,7 +367,7 @@ const ImageUploader = () => {
         isClosable: true,
       });
     }
-  }, [availableImages, selectedImageIndex, selectImage, toast, setSavedStrokes, setInitialized]);
+  }, [availableImages, selectedImageIndex, selectImage, toast, setSavedStrokes, setInitialized, clearCanvas]);
 
   // Get the full image URL (adding base URL if needed)
   const getFullImageUrl = useCallback((urlPath) => {

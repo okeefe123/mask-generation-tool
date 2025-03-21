@@ -332,7 +332,15 @@ const ToolPanel = ({ canvasElement }) => {
 };
 
 // Export the save function to be used in StatusFooter
-export const handleSaveMask = async (canvasElement, imageId, originalImage, toast, setIsLoading, setError) => {
+export const handleSaveMask = async (
+  canvasElement, 
+  imageId, 
+  originalImage, 
+  toast, 
+  setIsLoading, 
+  setError,
+  fetchAvailableImagesFunc
+) => {
   if (!canvasElement || !imageId) {
     return;
   }
@@ -494,7 +502,7 @@ export const handleSaveMask = async (canvasElement, imageId, originalImage, toas
     
     // Since we're using a filesystem-based approach, refresh available images
     // This will remove the image from the list if a mask was created for it
-    if (globalFetchAvailableImages) {
+    if (fetchAvailableImagesFunc && typeof fetchAvailableImagesFunc === 'function') {
       console.log('Refreshing available images after mask save');
       
       // We need to give the server time to process the saved mask
@@ -506,7 +514,7 @@ export const handleSaveMask = async (canvasElement, imageId, originalImage, toas
         }
         
         // Then refresh the available images
-        await globalFetchAvailableImages();
+        await fetchAvailableImagesFunc();
         
         // Add a reminder toast after images are refreshed
         setTimeout(() => {
@@ -521,6 +529,14 @@ export const handleSaveMask = async (canvasElement, imageId, originalImage, toas
       }, 1000); // Delay to allow for server processing
     } else {
       console.error('fetchAvailableImages function is not available');
+      // SIMPLE FIX: Just show a toast as notification
+      toast({
+        title: 'Mask saved successfully',
+        description: 'Please select another image to continue annotating.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
     }
     
     return response;

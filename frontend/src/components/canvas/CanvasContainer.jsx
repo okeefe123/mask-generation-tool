@@ -14,7 +14,7 @@ import { handleSaveMask } from '../tools/ToolPanel';
  */
 const CanvasContainer = ({ onCanvasReady, canvasElement }) => {
   const { setIsLoading, setError } = useUIContext();
-  const { imageId, originalImage } = useImageContext();
+  const { imageId, originalImage, fetchAvailableImages } = useImageContext();
   const [isSaving, setIsSaving] = useState(false);
   const toast = useToast();
 
@@ -36,7 +36,7 @@ const CanvasContainer = ({ onCanvasReady, canvasElement }) => {
     
     try {
       setIsSaving(true);
-      await handleSaveMask(canvasElement, imageId, originalImage, toast, setIsLoading, setError);
+      await handleSaveMask(canvasElement, imageId, originalImage, toast, setIsLoading, setError, fetchAvailableImages);
     } catch (error) {
       console.error('Error in save handler:', error);
     } finally {
