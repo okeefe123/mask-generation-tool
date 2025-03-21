@@ -40,6 +40,7 @@ describe('DrawingCanvas Component', () => {
     current: {
       clientWidth: 800,
       clientHeight: 600,
+      tagName: 'IMG', // Add this to simulate an img element
     },
   };
 
@@ -79,11 +80,18 @@ describe('DrawingCanvas Component', () => {
   });
 
   test('renders canvas when display image is available', () => {
-    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={vi.fn()} />);
+    // Mock document.querySelector to return the mock image element
+    const originalQuerySelector = document.querySelector;
+    document.querySelector = vi.fn(() => mockImageRef.current);
+
+    render(<DrawingCanvas onCanvasReady={vi.fn()} />);
     
     // Check that the canvas is rendered
     const canvas = screen.getByRole('presentation');
     expect(canvas).toBeInTheDocument();
+    
+    // Restore original querySelector
+    document.querySelector = originalQuerySelector;
   });
 
   test('does not allow drawing when no image is displayed', () => {
@@ -119,8 +127,22 @@ describe('DrawingCanvas Component', () => {
   });
 
   test('handles mouse events correctly', () => {
+    // Mock document.querySelector to return the mock image element
+    const originalQuerySelector = document.querySelector;
+    document.querySelector = vi.fn(() => mockImageRef.current);
+    
+    // Mock getBoundingClientRect
+    const mockGetBoundingClientRect = vi.fn(() => ({
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 600
+    }));
+    
+    Element.prototype.getBoundingClientRect = mockGetBoundingClientRect;
+    
     const mockOnCanvasReady = vi.fn();
-    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={mockOnCanvasReady} />);
+    render(<DrawingCanvas onCanvasReady={mockOnCanvasReady} />);
     
     const canvas = screen.getByRole('presentation');
     
@@ -140,30 +162,56 @@ describe('DrawingCanvas Component', () => {
     
     // Check that stroke was added to context
     expect(mockCanvasContextValues.addStroke).toHaveBeenCalled();
+    
+    // Restore original methods
+    document.querySelector = originalQuerySelector;
+    delete Element.prototype.getBoundingClientRect;
   });
 
   test('handles touch events correctly', () => {
-    render(<DrawingCanvas imageRef={mockImageRef} onCanvasReady={vi.fn()} />);
+    // Mock document.querySelector to return the mock image element
+    const originalQuerySelector = document.querySelector;
+    document.querySelector = vi.fn(() => mockImageRef.current);
+    
+    // Mock getBoundingClientRect
+    const mockGetBoundingClientRect = vi.fn(() => ({
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 600
+    }));
+    
+    Element.prototype.getBoundingClientRect = mockGetBoundingClientRect;
+    
+    render(<DrawingCanvas onCanvasReady={vi.fn()} />);
     
     const canvas = screen.getByRole('presentation');
     
     // Simulate touch start
-    fireEvent.touchStart(canvas, { 
-      touches: [{ clientX: 100, clientY: 100 }] 
+    fireEvent.touchStart(canvas, {
+      touches: [{ clientX: 100, clientY: 100 }],
+      changedTouches: [{ clientX: 100, clientY: 100 }]
     });
     
     // Simulate touch move
-    fireEvent.touchMove(canvas, { 
-      touches: [{ clientX: 150, clientY: 150 }] 
+    fireEvent.touchMove(canvas, {
+      touches: [{ clientX: 150, clientY: 150 }],
+      changedTouches: [{ clientX: 150, clientY: 150 }]
     });
     
     // Simulate touch end
-    fireEvent.touchEnd(canvas);
+    fireEvent.touchEnd(canvas, {
+      changedTouches: [{ clientX: 150, clientY: 150 }]
+    });
     
     // Check that drawing methods were called
     expect(mockGetContext().beginPath).toHaveBeenCalled();
     expect(mockGetContext().arc).toHaveBeenCalled();
     expect(mockGetContext().fill).toHaveBeenCalled();
+    
+    // Restore original methods
+    document.querySelector = originalQuerySelector;
+    delete Element.prototype.getBoundingClientRect;
   });
 
   test('exposes undo and clear methods to canvas element', () => {

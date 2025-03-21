@@ -1,21 +1,15 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 import ToolPanel from '../../../components/tools/ToolPanel';
-import { useAppContext } from '../../../contexts/AppContext';
-import { useUIContext } from '../../../contexts/UIContext';
-import { useCanvasContext } from '../../../contexts/CanvasContext';
+import { useAppContext } from '../../../contexts/AppContexts';
+import { useUIContext } from '../../../contexts/AppContexts';
+import { useCanvasContext } from '../../../contexts/AppContexts';
 import { saveMask } from '../../../services/api';
 
 // Mock the contexts
-vi.mock('../../../contexts/AppContext', () => ({
+vi.mock('../../../contexts/AppContexts', () => ({
   useAppContext: vi.fn(),
-}));
-
-vi.mock('../../../contexts/UIContext', () => ({
   useUIContext: vi.fn(),
-}));
-
-vi.mock('../../../contexts/CanvasContext', () => ({
   useCanvasContext: vi.fn(),
 }));
 
