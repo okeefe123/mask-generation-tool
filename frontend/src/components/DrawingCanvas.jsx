@@ -7,9 +7,11 @@ const DrawingCanvas = ({ onCanvasReady }) => {
   const imageRef = useRef(null);
   // Internal refs and state
   const canvasRef = useRef(null);
+  const cursorRef = useRef(null);
   const currentStroke = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
   const [initialized, setInitialized] = useState(false);
   
   // Get state from contexts
@@ -58,7 +60,7 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     }
     
     ctx.lineWidth = brushSize;
-    ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 1.0)';
+    ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1.0)';
     // Use 'destination-out' for eraser to completely remove pixels
     ctx.globalCompositeOperation = drawingMode === 'draw' ? 'source-over' : 'destination-out';
   }, [brushSize, drawingMode, brushShape]);
@@ -320,6 +322,13 @@ const DrawingCanvas = ({ onCanvasReady }) => {
       canvas.width = width;
       canvas.height = height;
       
+      // Also set cursor canvas dimensions
+      if (cursorRef.current) {
+        const cursorCanvas = cursorRef.current;
+        cursorCanvas.width = width;
+        cursorCanvas.height = height;
+      }
+      
       // Log canvas dimensions for debugging
       console.log('Canvas initialized:', {
         canvasWidth: canvas.width,
@@ -500,13 +509,46 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     setIsDrawing(false);
   };
 
+  // Handle mouse movement to update cursor
+  const updateCursorPosition = useCallback((e) => {
+    if (!displayImage || !canvasRef.current) return;
+    
+    const { offsetX, offsetY } = getCoordinates(e);
+    setCursorPosition({ x: offsetX, y: offsetY });
+    
+    // Update cursor canvas
+    if (cursorRef.current) {
+      const cursorCanvas = cursorRef.current;
+      const ctx = cursorCanvas.getContext('2d');
+      
+      // Clear previous cursor
+      ctx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+      
+      // Draw new cursor based on brush settings
+      ctx.beginPath();
+      ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(32, 31, 31, 0.8)' : 'rgba(255, 0, 0, 0.8)';
+      ctx.fillStyle = drawingMode === 'draw' ? 'rgba(227, 227, 227, 0.7)' : 'rgba(255, 0, 0, 0.2)';
+      ctx.lineWidth = 1.5;
+      
+      if (brushShape === 'circle') {
+        ctx.arc(offsetX, offsetY, brushSize / 2, 0, Math.PI * 2);
+      } else {
+        const halfSize = brushSize / 2;
+        ctx.rect(offsetX - halfSize, offsetY - halfSize, brushSize, brushSize);
+      }
+      
+      ctx.fill();
+      ctx.stroke();
+    }
+  }, [displayImage, drawingMode, brushSize, brushShape]);
+
   return (
-    <Box 
-      position="absolute" 
-      top="0" 
-      left="0" 
-      width="100%" 
-      height="100%" 
+    <Box
+      position="absolute"
+      top="0"
+      left="0"
+      width="100%"
+      height="100%"
       zIndex="10"
       pointerEvents={displayImage ? 'auto' : 'none'}
     >
@@ -518,17 +560,35 @@ const DrawingCanvas = ({ onCanvasReady }) => {
           left: 0,
           width: '100%',
           height: '100%',
-          cursor: displayImage ? 'crosshair' : 'default',
+          cursor: 'none', // Hide default cursor
         }}
         role="presentation"
         onMouseDown={startDrawing}
-        onMouseMove={draw}
+        onMouseMove={(e) => {
+          updateCursorPosition(e);
+          draw(e);
+        }}
         onMouseUp={stopDrawing}
         onMouseLeave={stopDrawing}
         onTouchStart={startDrawing}
         onTouchMove={draw}
         onTouchEnd={stopDrawing}
         onTouchCancel={stopDrawing}
+      />
+      
+      {/* Cursor canvas */}
+      <canvas
+        ref={cursorRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none', // Pass through events to main canvas
+          zIndex: 3
+        }}
+        role="presentation"
       />
     </Box>
   );
