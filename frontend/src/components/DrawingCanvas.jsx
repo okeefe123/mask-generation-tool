@@ -60,9 +60,10 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     }
     
     ctx.lineWidth = brushSize;
-    ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1.0)';
+    // Use transparent strokes for both drawing and erasing modes
+    ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 1)';
     // Add fillStyle to match strokeStyle for fill operations (dots)
-    ctx.fillStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1.0)';
+    ctx.fillStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 1)';
     // Use 'destination-out' for eraser to completely remove pixels
     ctx.globalCompositeOperation = drawingMode === 'draw' ? 'source-over' : 'destination-out';
   }, [brushSize, drawingMode, brushShape]);
@@ -107,7 +108,8 @@ const DrawingCanvas = ({ onCanvasReady }) => {
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
         ctx.lineWidth = stroke.brushSize;
-        ctx.strokeStyle = stroke.mode === 'draw' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 1.0)';
+        // Use transparent strokes for both drawing and erasing modes
+        ctx.strokeStyle = stroke.mode === 'draw' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 1.0)';
         ctx.globalCompositeOperation = stroke.mode === 'draw' ? 'source-over' : 'destination-out';
         
         // Draw the stroke
@@ -564,10 +566,10 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     // Set appropriate opacity based on mode
     if (drawingMode === 'draw') {
       // For drawing: semi-transparent for visual feedback
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha = 0.4;
     } else {
-      // For erasing: full opacity to completely remove pixels
-      ctx.globalAlpha = 1.0;
+      // For erasing: moderate transparency for visual feedback while still removing pixels
+      ctx.globalAlpha = 0.4;
     }
     
     if (brushShape === 'square') {
