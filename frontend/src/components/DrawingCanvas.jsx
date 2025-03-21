@@ -60,12 +60,18 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     }
     
     ctx.lineWidth = brushSize;
-    // Use transparent strokes for drawing mode, but solid black for eraser
-    ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1)';
-    // Add fillStyle to match strokeStyle for fill operations (dots)
-    ctx.fillStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1)';
-    // Use 'destination-out' for eraser to completely remove pixels
-    ctx.globalCompositeOperation = drawingMode === 'draw' ? 'source-over' : 'destination-out';
+    
+    if (drawingMode === 'draw') {
+      // For drawing mode - use semi-transparent white
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      // For erasing mode - use solid black with destination-out
+      ctx.strokeStyle = 'rgb(0, 0, 0)';
+      ctx.fillStyle = 'rgb(0, 0, 0)';
+      ctx.globalCompositeOperation = 'destination-out';
+    }
   }, [brushSize, drawingMode, brushShape]);
   
   // Function to redraw all strokes
@@ -105,23 +111,20 @@ const DrawingCanvas = ({ onCanvasReady }) => {
         const stroke = validStrokes[i];
         
         // Set up context for this stroke
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
+        ctx.lineJoin = stroke.brushShape === 'circle' ? 'round' : 'miter';
+        ctx.lineCap = stroke.brushShape === 'circle' ? 'round' : 'butt';
         ctx.lineWidth = stroke.brushSize;
-        // Use transparent strokes for both drawing and erasing modes
-        ctx.strokeStyle = stroke.mode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1)';
-        ctx.fillStyle = stroke.mode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1)';
         
-        // Use appropriate compositing mode
         if (stroke.mode === 'draw') {
-          // Use source-over for drawing with semi-transparency
+          // For drawing - semi-transparent white with source-over
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
           ctx.globalCompositeOperation = 'source-over';
-          // Ensure consistent alpha for drawing
-          ctx.globalAlpha = 0.6;
         } else {
-          // For erasing: use destination-out with full opacity to completely remove pixels
+          // For erasing - solid black with destination-out to completely remove
+          ctx.strokeStyle = 'rgb(0, 0, 0)';
+          ctx.fillStyle = 'rgb(0, 0, 0)';
           ctx.globalCompositeOperation = 'destination-out';
-          ctx.globalAlpha = 1.0;
         }
         
         // Draw the stroke
@@ -169,21 +172,19 @@ const DrawingCanvas = ({ onCanvasReady }) => {
             }
             ctx.stroke();
           } else {
-            // For square brushes, draw a series of squares along the path
+            // For square brushes, use a separate canvas to ensure consistent transparency
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvasRef.current.width;
+            tempCanvas.height = canvasRef.current.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Use solid white on the temp canvas
+            tempCtx.fillStyle = 'rgb(255, 255, 255)';
+            
             const halfSize = stroke.brushSize / 2;
             
-            // Use a separate canvas to prevent overlapping areas from becoming darker
-            const squareCanvas = document.createElement('canvas');
-            squareCanvas.width = canvasRef.current.width;
-            squareCanvas.height = canvasRef.current.height;
-            const squareCtx = squareCanvas.getContext('2d');
-            
-            // Set same opacity as circle
-            squareCtx.fillStyle = 'rgb(255, 255, 255)';
-            squareCtx.globalAlpha = 1.0;
-            
             // Draw a square at the first point
-            squareCtx.fillRect(firstPoint.x - halfSize, firstPoint.y - halfSize, stroke.brushSize, stroke.brushSize);
+            tempCtx.fillRect(firstPoint.x - halfSize, firstPoint.y - halfSize, stroke.brushSize, stroke.brushSize);
             
             // Draw squares along each line segment
             for (let j = 1; j < stroke.points.length; j++) {
@@ -192,7 +193,7 @@ const DrawingCanvas = ({ onCanvasReady }) => {
               if (!point || !prevPoint) continue;
               
               // Draw a square at the current point
-              squareCtx.fillRect(point.x - halfSize, point.y - halfSize, stroke.brushSize, stroke.brushSize);
+              tempCtx.fillRect(point.x - halfSize, point.y - halfSize, stroke.brushSize, stroke.brushSize);
               
               // Calculate distance between points
               const dx = point.x - prevPoint.x;
@@ -206,21 +207,18 @@ const DrawingCanvas = ({ onCanvasReady }) => {
                   const t = k / steps;
                   const interpX = prevPoint.x + dx * t;
                   const interpY = prevPoint.y + dy * t;
-                  squareCtx.fillRect(interpX - halfSize, interpY - halfSize, stroke.brushSize, stroke.brushSize);
+                  tempCtx.fillRect(interpX - halfSize, interpY - halfSize, stroke.brushSize, stroke.brushSize);
                 }
               }
             }
             
-            // Now draw the square brush content onto the main canvas with proper opacity
+            // Draw the temp canvas onto the main canvas with proper opacity
             ctx.save();
             ctx.globalAlpha = 0.6;
-            ctx.drawImage(squareCanvas, 0, 0);
+            ctx.drawImage(tempCanvas, 0, 0);
             ctx.restore();
           }
         }
-        
-        // Reset global alpha to default after this stroke is complete
-        ctx.globalAlpha = 1.0;
       }
     }
     
@@ -566,15 +564,29 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     const ctx = canvasRef.current.getContext('2d');
     setupContext(ctx);
     
+    // Draw initial point based on brush shape
     if (brushShape === 'circle') {
-      // Draw a circle
       ctx.beginPath();
       ctx.arc(offsetX, offsetY, brushSize / 2, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      // Draw a square
+      // For square brush, use a temp canvas for consistent transparency
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvasRef.current.width;
+      tempCanvas.height = canvasRef.current.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      
+      // Use solid white on temp canvas
+      tempCtx.fillStyle = 'rgb(255, 255, 255)';
+      
       const halfSize = brushSize / 2;
-      ctx.fillRect(offsetX - halfSize, offsetY - halfSize, brushSize, brushSize);
+      tempCtx.fillRect(offsetX - halfSize, offsetY - halfSize, brushSize, brushSize);
+      
+      // Draw with proper opacity
+      ctx.save();
+      ctx.globalAlpha = 0.6;
+      ctx.drawImage(tempCanvas, 0, 0);
+      ctx.restore();
     }
   };
 
@@ -594,36 +606,27 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     // Ensure context is properly set up
     setupContext(ctx);
     
-    // Set appropriate opacity based on mode
-    if (drawingMode === 'draw') {
-      // For drawing: semi-transparent for visual feedback
-      ctx.globalAlpha = 0.6;
-    } else {
-      // For erasing: full opacity to completely remove pixels
-      ctx.globalAlpha = 1.0;
-    }
-    
+    // Draw based on the brush shape
     if (brushShape === 'square') {
-      // For square brushes, create a separate canvas to prevent opacity buildup
+      // Use a separate canvas for square brush to ensure consistent transparency
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = canvasRef.current.width;
       tempCanvas.height = canvasRef.current.height;
       const tempCtx = tempCanvas.getContext('2d');
       
-      // Use solid white on the temp canvas
+      // Use solid white on temporary canvas
       tempCtx.fillStyle = 'rgb(255, 255, 255)';
       
-      // Draw a square at the current position
+      // Draw a square
       const halfSize = brushSize / 2;
       tempCtx.fillRect(offsetX - halfSize, offsetY - halfSize, brushSize, brushSize);
       
       // To create a continuous trail, draw squares along the line between last position and current position
-      // Calculate distance between points
       const dx = offsetX - lastPosition.x;
       const dy = offsetY - lastPosition.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
       
-      // If distance is larger than half the brush size, interpolate points for a continuous trail
+      // If distance is larger than half the brush size, interpolate points
       if (distance > brushSize / 2) {
         const steps = Math.ceil(distance / (brushSize / 2));
         for (let i = 1; i < steps; i++) {
@@ -634,21 +637,18 @@ const DrawingCanvas = ({ onCanvasReady }) => {
         }
       }
       
-      // Draw the temp canvas onto the main canvas with the desired opacity
+      // Draw the temp canvas onto the main canvas with proper opacity
       ctx.save();
       ctx.globalAlpha = 0.6;
       ctx.drawImage(tempCanvas, 0, 0);
       ctx.restore();
     } else {
-      // For circle brushes, continue with the traditional line drawing
+      // For circle brushes, use standard line drawing
       ctx.beginPath();
       ctx.moveTo(lastPosition.x, lastPosition.y);
       ctx.lineTo(offsetX, offsetY);
       ctx.stroke();
     }
-    
-    // // Reset globalAlpha to default
-    // ctx.globalAlpha = 0.6;
     
     setLastPosition({ x: offsetX, y: offsetY });
   };
