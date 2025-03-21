@@ -27,6 +27,7 @@ import {
   ModalCloseButton,
   Image as ChakraImage,
   SimpleGrid,
+  Flex,
 } from '@chakra-ui/react';
 import { useUIContext } from '../contexts/AppContexts';
 import { useImageContext } from '../contexts/AppContexts';
@@ -458,6 +459,52 @@ const ImageUploader = () => {
             </Text>
           )}
         </FormControl>
+        
+        {/* Image Preview Section - Shows after selection but before opening */}
+        {previewImage && (
+          <Box 
+            mb={3} 
+            p={2} 
+            borderWidth="1px" 
+            borderRadius="md" 
+            borderColor="gray.200"
+            bg="gray.50"
+          >
+            <Flex direction={{ base: "column", sm: "row" }} alignItems="center">
+              <Box 
+                minW="80px" 
+                h="80px" 
+                mr={{ base: 0, sm: 3 }} 
+                mb={{ base: 2, sm: 0 }}
+                position="relative"
+                borderRadius="md"
+                overflow="hidden"
+                bg="gray.100"
+              >
+                <ChakraImage
+                  src={previewImage.file}
+                  alt={previewImage.original_filename || "Preview"}
+                  objectFit="contain"
+                  w="100%"
+                  h="100%"
+                  fallbackSrc="https://via.placeholder.com/80?text=Image"
+                  onError={(e) => {
+                    console.error("Error loading image preview");
+                    e.target.src = getFullImageUrl(previewImage.file);
+                  }}
+                />
+              </Box>
+              <Box flex="1">
+                <Text fontSize="xs" fontWeight="medium" color="gray.700">
+                  {previewImage.original_filename}
+                </Text>
+                <Text fontSize="xs" color="gray.600">
+                  {previewImage.width} × {previewImage.height} px
+                </Text>
+              </Box>
+            </Flex>
+          </Box>
+        )}
         
         <Button
           colorScheme="green"
