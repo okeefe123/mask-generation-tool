@@ -66,6 +66,20 @@ const ToolPanel = ({ canvasElement }) => {
       tempCanvas.height = originalDimensions.height;
       const tempCtx = tempCanvas.getContext('2d');
       
+      // Log dimensions for debugging large image issue
+      console.log('DEBUG - CRITICAL - Mask Save Dimensions:', {
+        originalImageWidth: originalDimensions.width,
+        originalImageHeight: originalDimensions.height,
+        canvasWidth: canvasElement.width,
+        canvasHeight: canvasElement.height,
+        canvasStyleWidth: canvasElement.style.width,
+        canvasStyleHeight: canvasElement.style.height,
+        clientWidth: canvasElement.clientWidth,
+        clientHeight: canvasElement.clientHeight,
+        originalImageAspectRatio: originalDimensions.width / originalDimensions.height,
+        canvasAspectRatio: canvasElement.width / canvasElement.height
+      });
+      
       // Fill with black (background)
       tempCtx.fillStyle = 'black';
       tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
@@ -92,11 +106,63 @@ const ToolPanel = ({ canvasElement }) => {
         throw new Error("Please draw something before saving");
       }
       
-      // Scale and draw the canvas to our temporary canvas
+      // Calculate aspect ratios to check for distortion
+      const sourceAspectRatio = canvasElement.width / canvasElement.height;
+      const targetAspectRatio = tempCanvas.width / tempCanvas.height;
+      
+      console.log('DEBUG - Aspect Ratios:', {
+        sourceAspectRatio,
+        targetAspectRatio,
+        difference: Math.abs(sourceAspectRatio - targetAspectRatio),
+        canvasElement,
+        tempCanvas
+      });
+      
+      console.log('IMPORTANT: This is likely causing the squishing issue!');
+      
+      console.log('DEBUG - Final Aspect Ratios when saving mask:', {
+        sourceAspectRatio,
+        targetAspectRatio,
+        difference: Math.abs(sourceAspectRatio - targetAspectRatio)
+      });
+      
+      // Scale canvas content to fit the output dimensions while preserving aspect ratio
+      let sx = 0, sy = 0, sWidth = canvasElement.width, sHeight = canvasElement.height;
+      let dx = 0, dy = 0, dWidth = tempCanvas.width, dHeight = tempCanvas.height;
+      
+      // If aspect ratios are significantly different (which they shouldn't be after our fix)
+      // then adjust the source or destination rectangle to preserve aspect ratio
+      if (Math.abs(sourceAspectRatio - targetAspectRatio) > 0.01) {
+        console.log('Adjusting mask dimensions to correct aspect ratio');
+        
+        // Since we're fixing the canvas initialization, this is just a safety measure
+        // Use the entire tempCanvas (destination) as is, and adjust the source rectangle
+        if (sourceAspectRatio > targetAspectRatio) {
+          // Source is wider, adjust height
+          const adjustedHeight = canvasElement.width / targetAspectRatio;
+          sy = (canvasElement.height - adjustedHeight) / 2;
+          sHeight = adjustedHeight;
+        } else {
+          // Source is taller, adjust width
+          const adjustedWidth = canvasElement.height * targetAspectRatio;
+          sx = (canvasElement.width - adjustedWidth) / 2;
+          sWidth = adjustedWidth;
+        }
+      }
+      
+      // Add additional log to debug final dimensions when drawing to tempCanvas
+      console.log('DEBUG - Using dimensions for saving mask:', {
+        sourceRect: { x: sx, y: sy, width: sWidth, height: sHeight },
+        destRect: { x: dx, y: dy, width: dWidth, height: dHeight },
+        sourceAspectRatio: sWidth / sHeight,
+        destAspectRatio: dWidth / dHeight
+      });
+      
+      // Draw the canvas content to our temporary canvas with correct proportions
       tempCtx.drawImage(
         canvasElement,
-        0, 0, canvasElement.width, canvasElement.height,
-        0, 0, tempCanvas.width, tempCanvas.height
+        sx, sy, sWidth, sHeight,
+        dx, dy, dWidth, dHeight
       );
       
       // Convert to binary mask
@@ -186,26 +252,38 @@ const ToolPanel = ({ canvasElement }) => {
       throw error;
     }
   };
-
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-      setIsLoading(true);
-      setError(null);
-      
-      // Check canvas availability
-      if (canvasError) {
-        toast({
-          title: 'Cannot save',
-          description: canvasError,
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
-        });
-        return;
-      }
-      
-      // Use our optimized save function
+const handleSave = async () => {
+  try {
+    setIsSaving(true);
+    setIsLoading(true);
+    setError(null);
+    
+    // Extra debug - log original dimensions vs canvas dimensions
+    console.log('SAVING MASK - Debug Information', {
+      originalImageWidth: originalDimensions.width,
+      originalImageHeight: originalDimensions.height,
+      originalAspectRatio: originalDimensions.width / originalDimensions.height,
+      canvasElement: canvasElement ? {
+        width: canvasElement.width,
+        height: canvasElement.height,
+        aspectRatio: canvasElement.width / canvasElement.height
+      } : 'No canvas'
+    });
+    
+    // Check canvas availability
+    if (canvasError) {
+      toast({
+        title: 'Cannot save',
+        description: canvasError,
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    // Use our optimized save function
+    await saveCanvasAsMask();
       await saveCanvasAsMask();
       
       toast({

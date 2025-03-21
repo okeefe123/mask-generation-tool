@@ -95,10 +95,20 @@ const CanvasArea = ({ onCanvasReady }) => {
         <Box
           position="relative"
           id="image-canvas-container"
-          width={originalDimensions.width ? `${originalDimensions.width}px` : "auto"}
-          height={originalDimensions.height ? `${originalDimensions.height}px` : "auto"}
           maxW="100%"
           maxH="100%"
+          w="auto"
+          h="auto"
+          sx={{
+            // Force maintain aspect ratio on container
+            '&': {
+              aspectRatio: originalDimensions.width && originalDimensions.height
+                ? `${originalDimensions.width} / ${originalDimensions.height}`
+                : 'auto',
+              width: originalDimensions.width ? 'min(100%, 1200px)' : 'auto', // Reasonable max width
+              height: 'auto',
+            }
+          }}
         >
           {/* Debug info overlay */}
           <Box
@@ -128,6 +138,11 @@ const CanvasArea = ({ onCanvasReady }) => {
               height: '100%',
               objectFit: 'contain',
               zIndex: 1,
+              aspectRatio: originalDimensions.width && originalDimensions.height
+                ? `${originalDimensions.width} / ${originalDimensions.height}`
+                : 'auto',
+              maxHeight: '100%',
+              maxWidth: '100%',
             }}
           />
           

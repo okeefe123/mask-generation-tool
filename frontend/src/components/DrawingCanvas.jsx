@@ -268,9 +268,53 @@ const DrawingCanvas = ({ onCanvasReady }) => {
         sourceImgId: sourceImg.id
       });
       
-      // Use original dimensions if available as a fallback
-      const width = sourceImg.clientWidth || originalDimensions.width || 500;
-      const height = sourceImg.clientHeight || originalDimensions.height || 500;
+      // Get dimensions while preserving aspect ratio
+      let width, height;
+      
+      // If we have original dimensions, use them to calculate proper aspect ratio
+      if (originalDimensions.width && originalDimensions.height) {
+        const originalAspectRatio = originalDimensions.width / originalDimensions.height;
+        
+        // Use client width as base but ensure correct aspect ratio
+        if (sourceImg.clientWidth && sourceImg.clientHeight) {
+          // Calculate what dimensions should be to maintain aspect ratio
+          const containerHeight = sourceImg.clientHeight;
+          const containerWidth = sourceImg.clientWidth;
+          
+          console.log('Original vs Container dimensions:', {
+            originalWidth: originalDimensions.width,
+            originalHeight: originalDimensions.height,
+            containerWidth,
+            containerHeight,
+            originalAspectRatio,
+            containerAspectRatio: containerWidth / containerHeight
+          });
+          
+          // Use container width and calculate height based on aspect ratio
+          width = containerWidth;
+          height = width / originalAspectRatio;
+          
+          // If this makes height too big, use container height and calculate width
+          if (height > containerHeight) {
+            height = containerHeight;
+            width = height * originalAspectRatio;
+          }
+        } else {
+          // Fallback to original dimensions
+          width = originalDimensions.width;
+          height = originalDimensions.height;
+        }
+      } else {
+        // Fallback to client dimensions or defaults
+        width = sourceImg.clientWidth || 500;
+        height = sourceImg.clientHeight || 500;
+      }
+      
+      console.log('Setting canvas dimensions with corrected aspect ratio:', {
+        width,
+        height,
+        aspectRatio: width / height
+      });
       
       // Set canvas dimensions
       canvas.width = width;
