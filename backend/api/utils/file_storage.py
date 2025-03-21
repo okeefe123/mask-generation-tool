@@ -151,12 +151,13 @@ class MaskStorage(SecureFileStorage):
         return f"{safe_filename(base_name)}{ext}"
 
 
-def generate_paired_filename(original_filename):
+def generate_paired_filename(original_filename, prefix=''):
     """
     Generate a filename for a related file (e.g., a mask for an image).
     
     Args:
         original_filename: The filename of the original file
+        prefix: Optional prefix to add to the filename (e.g., 'mask_')
         
     Returns:
         A new filename that maintains a relationship with the original
@@ -172,8 +173,8 @@ def generate_paired_filename(original_filename):
     if not ext:
         ext = '.jpg'
     
-    # Generate a new filename with the same name and original extension
-    return f"{slug}{ext}"
+    # Generate a new filename with the prefix, name, and original extension
+    return f"{prefix}{slug}{ext}"
 
 
 def validate_file_type(file, allowed_types):

@@ -1,41 +1,112 @@
-import { createContext, useContext, useState, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { getAllImages, getAllMasks, checkImageHasMask } from '../services/api';
 
 const ImageContext = createContext();
 
 export const useImageContext = () => useContext(ImageContext);
 
 export const ImageProvider = ({ children }) => {
+  // Single active image state
   const [originalImage, setOriginalImage] = useState(null);
   const [displayImage, setDisplayImage] = useState(null);
-  const [imageId, setImageId] = useState(null); // Add image ID from backend
-  const [originalFileName, setOriginalFileName] = useState(null); // Store original file name
+  const [imageId, setImageId] = useState(null);
+  const [originalFileName, setOriginalFileName] = useState(null);
   const [originalDimensions, setOriginalDimensions] = useState({ width: 0, height: 0 });
   const [scaleFactor, setScaleFactor] = useState(1);
-  const [drawingMode, setDrawingMode] = useState('draw'); // 'draw' or 'erase'
+  const [drawingMode, setDrawingMode] = useState('draw');
   const [brushSize, setBrushSize] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Add persistent strokes storage that survives component unmounts
   const [savedStrokes, setSavedStrokes] = useState([]);
+  
+  // Multiple images state
+  const [availableImages, setAvailableImages] = useState([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(-1);
+  const [imagesWithMasks, setImagesWithMasks] = useState([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
+
+  // Fetch all available images (those without masks)
+  const fetchAvailableImages = useCallback(async () => {
+    setIsLoadingImages(true);
+    try {
+      // Get all images from the server
+      const imagesResponse = await getAllImages();
+      
+      // Get all masks from the server
+      const masksResponse = await getAllMasks();
+      
+      // Extract filenames from masks
+      const maskFilenames = masksResponse.map(mask => {
+        // Extract base filename without extension and path
+        const filename = mask.file.split('/').pop().split('.')[0];
+        return filename;
+      });
+      
+      setImagesWithMasks(maskFilenames);
+      
+      // Filter images that don't have masks
+      const availableImgs = imagesResponse.filter(image => {
+        const imageFilename = image.original_filename.split('.')[0];
+        return !maskFilenames.includes(imageFilename);
+      });
+      
+      setAvailableImages(availableImgs);
+      
+      // Select the first available image if any exist and none is selected
+      if (availableImgs.length > 0 && selectedImageIndex === -1) {
+        setSelectedImageIndex(0);
+        selectImage(availableImgs[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching available images:', error);
+      setError('Failed to load available images. Please try again.');
+    } finally {
+      setIsLoadingImages(false);
+    }
+  }, [selectedImageIndex]);
+
+  // Select an image from available images
+  const selectImage = useCallback((image) => {
+    if (!image) return;
+    
+    setOriginalImage(image.file);
+    setDisplayImage(image.file);
+    setImageId(image.id);
+    setOriginalFileName(image.original_filename);
+    setOriginalDimensions({
+      width: image.width,
+      height: image.height
+    });
+    // Reset drawing state when selecting a new image
+    setSavedStrokes([]);
+  }, []);
+
+  // Select image by index
+  const selectImageByIndex = useCallback((index) => {
+    if (index >= 0 && index < availableImages.length) {
+      setSelectedImageIndex(index);
+      selectImage(availableImages[index]);
+    }
+  }, [availableImages, selectImage]);
 
   // Reset all state
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setOriginalImage(null);
     setDisplayImage(null);
     setImageId(null);
-    setOriginalFileName(null); // Reset original file name
+    setOriginalFileName(null);
     setOriginalDimensions({ width: 0, height: 0 });
     setScaleFactor(1);
     setDrawingMode('draw');
     setBrushSize(10);
     setIsLoading(false);
     setError(null);
-    setSavedStrokes([]); // Reset saved strokes
-  };
+    setSavedStrokes([]);
+    setSelectedImageIndex(-1);
+  }, []);
 
   // Calculate scale factor based on viewport and image dimensions
-  const calculateScaleFactor = (imageWidth, imageHeight, containerWidth, containerHeight) => {
+  const calculateScaleFactor = useCallback((imageWidth, imageHeight, containerWidth, containerHeight) => {
     const widthRatio = containerWidth / imageWidth;
     const heightRatio = containerHeight / imageHeight;
     
@@ -43,9 +114,44 @@ export const ImageProvider = ({ children }) => {
     const newScaleFactor = Math.min(widthRatio, heightRatio, 1);
     setScaleFactor(newScaleFactor);
     return newScaleFactor;
-  };
+  }, []);
+
+  // Refresh available images after uploading a new batch
+  const refreshAvailableImages = useCallback(() => {
+    fetchAvailableImages();
+  }, [fetchAvailableImages]);
+
+  // Check if an image has been successfully masked (removed from available)
+  const checkImageMasked = useCallback(async (filename) => {
+    try {
+      const hasMask = await checkImageHasMask(filename);
+      if (hasMask) {
+        // Remove the masked image from available images
+        setAvailableImages(prev =>
+          prev.filter(img => img.original_filename !== filename)
+        );
+        
+        // Update images with masks
+        setImagesWithMasks(prev => [...prev, filename.split('.')[0]]);
+        
+        // If the current image was masked, select the next available one
+        if (originalFileName === filename && availableImages.length > 1) {
+          const nextIndex = selectedImageIndex < availableImages.length - 1
+            ? selectedImageIndex
+            : 0;
+          selectImageByIndex(nextIndex);
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error(`Error checking if image ${filename} has mask:`, error);
+      return false;
+    }
+  }, [availableImages, originalFileName, selectedImageIndex, selectImageByIndex]);
 
   const value = {
+    // Single image state
     originalImage,
     setOriginalImage,
     displayImage,
@@ -66,11 +172,24 @@ export const ImageProvider = ({ children }) => {
     setIsLoading,
     error,
     setError,
-    resetState,
-    calculateScaleFactor,
-    // Add saved strokes to context
     savedStrokes,
     setSavedStrokes,
+    
+    // Multiple images state and methods
+    availableImages,
+    selectedImageIndex,
+    setSelectedImageIndex,
+    selectImageByIndex,
+    selectImage,
+    isLoadingImages,
+    imagesWithMasks,
+    
+    // Actions
+    resetState,
+    calculateScaleFactor,
+    fetchAvailableImages,
+    refreshAvailableImages,
+    checkImageMasked,
   };
 
   return <ImageContext.Provider value={value}>{children}</ImageContext.Provider>;

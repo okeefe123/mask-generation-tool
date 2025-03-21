@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Box } from '@chakra-ui/react';
-import { useAppContext, useUIContext, useCanvasContext } from '../contexts/AppContexts';
+import { useImageContext, useUIContext, useCanvasContext } from '../contexts/AppContexts';
 
 const DrawingCanvas = ({ onCanvasReady }) => {
   // Create a ref to the parent image element
@@ -10,13 +10,14 @@ const DrawingCanvas = ({ onCanvasReady }) => {
   const currentStroke = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
+  const [initialized, setInitialized] = useState(false);
   
   // Get state from contexts
   const {
     displayImage,
     originalDimensions,
     scaleFactor,
-  } = useAppContext();
+  } = useImageContext();
   
   const {
     drawingMode,
@@ -40,31 +41,6 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     handleUndo();
   }, [handleUndo]);
   
-  // Notify parent component when canvas is ready and expose undo function
-  useEffect(() => {
-    if (canvasRef.current) {
-      console.log('Canvas is ready, notifying parent:', canvasRef.current);
-      // Add undo method to canvas element
-      canvasRef.current.undo = undoHandler;
-      // Add clear method to canvas element
-      canvasRef.current.clear = clearCanvas;
-      onCanvasReady(canvasRef.current);
-    }
-  }, [canvasRef.current, onCanvasReady, undoHandler]);
-  
-  // Debug - log when the canvas element is created or changes
-  useEffect(() => {
-    if (canvasRef.current) {
-      console.log('Canvas element:', canvasRef.current);
-      console.log('Canvas is valid:', canvasRef.current.tagName === 'CANVAS');
-      
-      // Add a data attribute to help with debugging
-      canvasRef.current.setAttribute('data-component', 'DrawingCanvas');
-    } else {
-      console.warn('Canvas ref is null!');
-    }
-  }, [canvasRef.current]);
-  
   // Monitor loading state changes
   useEffect(() => {
     console.log('Loading state changed:', isLoading);
@@ -86,78 +62,7 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     // Use 'destination-out' for eraser to completely remove pixels
     ctx.globalCompositeOperation = drawingMode === 'draw' ? 'source-over' : 'destination-out';
   }, [brushSize, drawingMode, brushShape]);
-
-  // Find the image element in the parent
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    
-    // Find the image element in the parent container
-    const parentContainer = canvasRef.current.parentElement.parentElement;
-    const imgElement = parentContainer.querySelector('img');
-    
-    if (imgElement) {
-      console.log('Found image element:', imgElement);
-      imageRef.current = imgElement;
-    } else {
-      console.warn('Could not find image element in parent container');
-    }
-  }, [canvasRef.current]);
-
-  // Initialize canvas when component mounts or when display image changes
-  useEffect(() => {
-    if (!displayImage || !canvasRef.current || !imageRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    // Set canvas dimensions to match the displayed image
-    canvas.width = imageRef.current.clientWidth;
-    canvas.height = imageRef.current.clientHeight;
-    
-    // Log canvas and image dimensions for debugging
-    console.log('Canvas dimensions set:', {
-      canvasWidth: canvas.width,
-      canvasHeight: canvas.height,
-      imageClientWidth: imageRef.current.clientWidth,
-      imageClientHeight: imageRef.current.clientHeight,
-      canvasCSSWidth: canvas.style.width,
-      canvasCSSHeight: canvas.style.height,
-      canvasBoundingRect: canvas.getBoundingClientRect()
-    });
-    
-    // Set up initial context state
-    setupContext(ctx);
-    
-    // Initial redraw
-    redrawCanvas();
-  }, [displayImage, imageRef, setupContext]);
-
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (!canvasRef.current || !imageRef.current || !displayImage) return;
-      
-      const canvas = canvasRef.current;
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      
-      // Save current drawing
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-      tempCtx.drawImage(canvas, 0, 0);
-      
-      // Resize canvas to match image
-      canvas.width = imageRef.current.clientWidth;
-      canvas.height = imageRef.current.clientHeight;
-      
-      // Restore drawing
-      canvas.getContext('2d').drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [displayImage, imageRef]);
-
+  
   // Function to redraw all strokes
   const redrawCanvas = useCallback(() => {
     // Get current strokes from context
@@ -250,6 +155,177 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     // Reset context to current drawing settings
     setupContext(ctx);
   }, [getCurrentStrokes, setupContext]);
+  
+  // Clear the canvas and strokes array
+  const clearCanvas = useCallback(() => {
+    console.log('Clearing canvas');
+    if (!canvasRef.current) {
+      console.warn('Canvas ref is null during clear');
+      return;
+    }
+    
+    // Clear strokes in context
+    clearCanvasStrokes();
+    
+    // Clear canvas
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+  }, [clearCanvasStrokes]);
+  
+  // Notify parent component when canvas is ready and expose undo function
+  useEffect(() => {
+    if (canvasRef.current) {
+      console.log('Canvas is ready, notifying parent:', canvasRef.current);
+      // Add undo method to canvas element
+      canvasRef.current.undo = undoHandler;
+      // Add clear method to canvas element
+      canvasRef.current.clear = clearCanvas;
+      onCanvasReady(canvasRef.current);
+    }
+  }, [canvasRef.current, onCanvasReady, undoHandler, clearCanvas]);
+  
+  // Debug - log when the canvas element is created or changes
+  useEffect(() => {
+    if (canvasRef.current) {
+      console.log('Canvas element:', canvasRef.current);
+      console.log('Canvas is valid:', canvasRef.current.tagName === 'CANVAS');
+      
+      // Add a data attribute to help with debugging
+      canvasRef.current.setAttribute('data-component', 'DrawingCanvas');
+    } else {
+      console.warn('Canvas ref is null!');
+    }
+  }, [canvasRef.current]);
+
+  // Find the image element in the parent
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    
+    // Find the image element using the ID (more reliable than DOM traversal)
+    const imgElement = document.getElementById('source-image');
+    
+    if (imgElement) {
+      console.log('Found source image element by ID:', imgElement);
+      imageRef.current = imgElement;
+    } else {
+      console.warn('Could not find image element with ID "source-image"');
+      
+      // Fallback to the old parent container approach
+      try {
+        const parentContainer = canvasRef.current.parentElement.parentElement;
+        const fallbackImage = parentContainer.querySelector('img');
+        
+        if (fallbackImage) {
+          console.log('Found image element via fallback approach:', fallbackImage);
+          imageRef.current = fallbackImage;
+        } else {
+          console.error('Could not find any image element for canvas to overlay');
+        }
+      } catch (err) {
+        console.error('Error finding parent image element:', err);
+      }
+    }
+  }, [canvasRef.current, displayImage]);
+
+  // Initialize canvas when displayImage changes
+  useEffect(() => {
+    if (!displayImage || !canvasRef.current) {
+      console.log('Cannot initialize canvas - missing displayImage or canvas', {
+        hasDisplayImage: !!displayImage,
+        hasCanvas: !!canvasRef.current
+      });
+      return;
+    }
+    
+    const canvas = canvasRef.current;
+    
+    // Function to set up the canvas
+    const initializeCanvas = () => {
+      // Try to get the source image from various methods
+      let sourceImg = imageRef.current || document.getElementById('source-image');
+      
+      if (!sourceImg) {
+        console.warn('Image reference not found during initialization, trying fallback methods');
+        
+        // Try to find image using DOM traversal
+        try {
+          sourceImg = canvas.parentElement.parentElement.querySelector('img');
+        } catch (err) {
+          console.error('Error finding image element:', err);
+        }
+      }
+      
+      if (!sourceImg) {
+        console.error('Cannot find source image for canvas dimensions');
+        return;
+      }
+      
+      console.log('Setting canvas dimensions to match image:', {
+        imgWidth: sourceImg.clientWidth,
+        imgHeight: sourceImg.clientHeight,
+        naturalWidth: sourceImg.naturalWidth,
+        naturalHeight: sourceImg.naturalHeight,
+        sourceImgId: sourceImg.id
+      });
+      
+      // Use original dimensions if available as a fallback
+      const width = sourceImg.clientWidth || originalDimensions.width || 500;
+      const height = sourceImg.clientHeight || originalDimensions.height || 500;
+      
+      // Set canvas dimensions
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Log canvas dimensions for debugging
+      console.log('Canvas initialized:', {
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        imageClientWidth: sourceImg.clientWidth,
+        imageClientHeight: sourceImg.clientHeight,
+        canvasBoundingRect: canvas.getBoundingClientRect()
+      });
+      
+      // Set up initial context state and redraw
+      const ctx = canvas.getContext('2d');
+      setupContext(ctx);
+      redrawCanvas();
+      
+      // Mark as initialized to prevent multiple initializations
+      setInitialized(true);
+    };
+    
+    // Initialize once
+    if (!initialized) {
+      initializeCanvas();
+    }
+    
+  }, [displayImage, setupContext, redrawCanvas, imageRef, originalDimensions, initialized]);
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (!canvasRef.current || !imageRef.current || !displayImage) return;
+      
+      const canvas = canvasRef.current;
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      
+      // Save current drawing
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      tempCtx.drawImage(canvas, 0, 0);
+      
+      // Resize canvas to match image
+      canvas.width = imageRef.current.clientWidth;
+      canvas.height = imageRef.current.clientHeight;
+      
+      // Restore drawing
+      canvas.getContext('2d').drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [displayImage, imageRef]);
 
   // Update canvas when strokes change
   useEffect(() => {
@@ -266,6 +342,33 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     // Redraw with current settings
     redrawCanvas();
   }, [brushSize, drawingMode, setupContext, redrawCanvas]);
+
+  // Helper function to get coordinates from different event types
+  const getCoordinates = (event) => {
+    let clientX, clientY;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Get client coordinates based on event type
+    if (event.type.includes('touch')) {
+      const touch = event.touches[0] || event.changedTouches[0];
+      clientX = touch.clientX;
+      clientY = touch.clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+    
+    // Calculate the scaling ratio between CSS size and actual canvas size
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    // Calculate the correct coordinates within the canvas
+    const offsetX = (clientX - rect.left) * scaleX;
+    const offsetY = (clientY - rect.top) * scaleY;
+    
+    return { offsetX, offsetY };
+  };
 
   // Drawing functions
   const startDrawing = (e) => {
@@ -353,49 +456,6 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     setIsDrawing(false);
   };
 
-  // Helper function to get coordinates from different event types
-  const getCoordinates = (event) => {
-    let clientX, clientY;
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    
-    // Get client coordinates based on event type
-    if (event.type.includes('touch')) {
-      const touch = event.touches[0] || event.changedTouches[0];
-      clientX = touch.clientX;
-      clientY = touch.clientY;
-    } else {
-      clientX = event.clientX;
-      clientY = event.clientY;
-    }
-    
-    // Calculate the scaling ratio between CSS size and actual canvas size
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    // Calculate the correct coordinates within the canvas
-    const offsetX = (clientX - rect.left) * scaleX;
-    const offsetY = (clientY - rect.top) * scaleY;
-    
-    return { offsetX, offsetY };
-  };
-
-  // Clear the canvas and strokes array
-  const clearCanvas = () => {
-    console.log('Clearing canvas');
-    if (!canvasRef.current) {
-      console.warn('Canvas ref is null during clear');
-      return;
-    }
-    
-    // Clear strokes in context
-    clearCanvasStrokes();
-    
-    // Clear canvas
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-  };
-
   return (
     <Box 
       position="absolute" 
@@ -424,6 +484,7 @@ const DrawingCanvas = ({ onCanvasReady }) => {
         onTouchStart={startDrawing}
         onTouchMove={draw}
         onTouchEnd={stopDrawing}
+        onTouchCancel={stopDrawing}
       />
     </Box>
   );

@@ -33,6 +33,47 @@ export const uploadImage = async (imageFile) => {
   }
 };
 
+// Multiple image upload endpoint
+export const uploadMultipleImages = async (imageFiles) => {
+  try {
+    const uploadPromises = Array.from(imageFiles).map(file => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      return api.post('/images/upload/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }).then(response => response.data);
+    });
+    
+    const results = await Promise.allSettled(uploadPromises);
+    
+    // Get successful uploads
+    const successfulUploads = results
+      .filter(result => result.status === 'fulfilled')
+      .map(result => result.value);
+      
+    // Get failed uploads
+    const failedUploads = results
+      .filter(result => result.status === 'rejected')
+      .map((result, index) => ({
+        fileName: imageFiles[index].name,
+        error: result.reason
+      }));
+    
+    return {
+      successful: successfulUploads,
+      failed: failedUploads,
+      totalSuccessful: successfulUploads.length,
+      totalFailed: failedUploads.length
+    };
+  } catch (error) {
+    console.error('Error in batch upload:', error);
+    throw error;
+  }
+};
+
 // Get image by ID
 export const getImage = async (imageId) => {
   try {
@@ -41,6 +82,39 @@ export const getImage = async (imageId) => {
   } catch (error) {
     console.error('Error fetching image:', error);
     throw error;
+  }
+};
+
+// Get all available images
+export const getAllImages = async () => {
+  try {
+    const response = await api.get('/images/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching all images:', error);
+    throw error;
+  }
+};
+
+// Get all masks to check which images have masks
+export const getAllMasks = async () => {
+  try {
+    const response = await api.get('/masks/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching masks:', error);
+    throw error;
+  }
+};
+
+// Check if an image has a saved mask
+export const checkImageHasMask = async (imageFileName) => {
+  try {
+    const response = await api.get(`/masks/check/${imageFileName}/`);
+    return response.data.hasMask;
+  } catch (error) {
+    console.error(`Error checking if image ${imageFileName} has mask:`, error);
+    return false; // Assume no mask on error
   }
 };
 

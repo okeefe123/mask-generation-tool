@@ -1,11 +1,38 @@
-import { Box, Center, Spinner, Text } from '@chakra-ui/react';
-import { useAppContext } from '../../contexts/AppContext';
+import { Box, Center, Spinner, Text, VStack, Code } from '@chakra-ui/react';
+import { useImageContext } from '../../contexts/ImageContext';
 import { useUIContext } from '../../contexts/UIContext';
+import { useState, useEffect } from 'react';
 import DrawingCanvas from '../DrawingCanvas';
 
 const CanvasArea = ({ onCanvasReady }) => {
-  const { displayImage, originalDimensions } = useAppContext();
+  const { displayImage, originalDimensions } = useImageContext();
   const { isLoading, error } = useUIContext();
+  const [imageState, setImageState] = useState("initializing");
+  
+  // Debug effect to monitor image loading and changes
+  useEffect(() => {
+    console.log("CanvasArea: displayImage changed:", displayImage);
+    
+    if (!displayImage) {
+      setImageState("no-image");
+      return;
+    }
+    
+    // Set to loading
+    setImageState("loading");
+    
+    // Create an image element to test if the URL is valid
+    const img = new Image();
+    img.onload = () => {
+      console.log("CanvasArea: Image loaded successfully:", displayImage);
+      setImageState("loaded");
+    };
+    img.onerror = (err) => {
+      console.error("CanvasArea: Error loading image:", err);
+      setImageState("error");
+    };
+    img.src = displayImage;
+  }, [displayImage]);
   
   if (isLoading) {
     return (
@@ -31,26 +58,90 @@ const CanvasArea = ({ onCanvasReady }) => {
     );
   }
   
+  if (imageState === "error") {
+    return (
+      <Center h="100%" bg="red.50">
+        <VStack spacing={2}>
+          <Text color="red.500">Error loading image</Text>
+          <Code fontSize="xs" p={2} maxW="90%" whiteSpace="pre-wrap">
+            URL: {displayImage}
+          </Code>
+          <Text fontSize="sm">The image URL may be incorrect or the file is not accessible.</Text>
+        </VStack>
+      </Center>
+    );
+  }
+  
+  if (imageState === "loading") {
+    return (
+      <Center h="100%">
+        <VStack>
+          <Spinner size="xl" color="blue.500" />
+          <Text>Loading image...</Text>
+        </VStack>
+      </Center>
+    );
+  }
+  
   return (
-    <Box 
-      position="relative" 
-      h="100%" 
-      w="100%" 
+    <Box
+      position="relative"
+      h="100%"
+      w="100%"
       bg="gray.100"
       data-testid="canvas-area"
     >
       <Center h="100%" w="100%">
-        <Box position="relative">
+        <Box
+          position="relative"
+          id="image-canvas-container"
+          width={originalDimensions.width ? `${originalDimensions.width}px` : "auto"}
+          height={originalDimensions.height ? `${originalDimensions.height}px` : "auto"}
+          maxW="100%"
+          maxH="100%"
+        >
+          {/* Debug info overlay */}
+          <Box
+            position="absolute"
+            top="0"
+            left="0"
+            bg="rgba(0,0,0,0.7)"
+            color="white"
+            p={2}
+            fontSize="xs"
+            zIndex="10"
+            maxW="250px"
+            display={process.env.NODE_ENV === 'development' ? 'block' : 'none'}
+          >
+            <Text>Image State: {imageState}</Text>
+            <Text noOfLines={1}>URL: {displayImage ? displayImage.substring(0, 25) + '...' : 'None'}</Text>
+            <Text>Dimensions: {originalDimensions.width}x{originalDimensions.height}</Text>
+          </Box>
+          
+          {/* The image */}
           <img
             src={displayImage}
             alt="Uploaded image"
+            id="source-image"
             style={{
-              maxWidth: '100%',
-              maxHeight: '100%',
+              width: '100%',
+              height: '100%',
               objectFit: 'contain',
+              zIndex: 1,
             }}
           />
-          <DrawingCanvas onCanvasReady={onCanvasReady} />
+          
+          {/* Canvas overlay - positioned absolutely on top of the image */}
+          <Box
+            position="absolute"
+            top="0"
+            left="0"
+            width="100%"
+            height="100%"
+            zIndex={2}
+          >
+            <DrawingCanvas onCanvasReady={onCanvasReady} />
+          </Box>
         </Box>
       </Center>
     </Box>

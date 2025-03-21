@@ -3,12 +3,14 @@ Views for the mask_generator API.
 
 These views handle the HTTP requests for our API endpoints.
 """
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Image, Mask
 from .serializers import ImageSerializer, MaskSerializer
 from .utils.image_processing import process_uploaded_image
+import os
 
 class ImageUploadView(APIView):
     """
@@ -62,6 +64,24 @@ class ImageUploadView(APIView):
             # Handle any errors during processing or saving
             print(f"Error processing/saving image: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ImageListView(APIView):
+    """
+    View for listing all images.
+    
+    This endpoint returns a list of all images stored in the system,
+    including their URLs, dimensions, and other metadata.
+    """
+    def get(self, request, format=None):
+        # Get all images
+        images = Image.objects.all()
+        
+        # Serialize the images
+        serializer = ImageSerializer(images, many=True)
+        
+        # Return the serialized data
+        return Response(serializer.data)
 
 
 class MaskSaveView(APIView):
@@ -124,6 +144,44 @@ class MaskSaveView(APIView):
             
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MaskListView(APIView):
+    """
+    View for listing all masks.
+    
+    This endpoint returns a list of all masks stored in the system,
+    including their URLs, associated images, and dimensions.
+    """
+    def get(self, request, format=None):
+        # Get all masks
+        masks = Mask.objects.all()
+        
+        # Serialize the masks
+        serializer = MaskSerializer(masks, many=True)
+        
+        # Return the serialized data
+        return Response(serializer.data)
+
+
+class MaskCheckView(APIView):
+    """
+    View for checking if an image has a mask.
+    
+    This endpoint checks if a mask exists for a given image filename.
+    It's used by the frontend to filter images that already have masks.
+    """
+    def get(self, request, filename, format=None):
+        # Strip any path and get just the filename without extension
+        base_filename = os.path.splitext(os.path.basename(filename))[0]
+        
+        # Check if any mask's filename matches the image
+        mask_exists = Mask.objects.filter(
+            image__original_filename__startswith=base_filename
+        ).exists()
+        
+        # Return the result
+        return Response({'hasMask': mask_exists})
 
 
 class ImageDetailView(APIView):
