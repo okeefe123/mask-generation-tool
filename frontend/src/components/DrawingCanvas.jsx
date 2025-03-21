@@ -143,15 +143,50 @@ const DrawingCanvas = ({ onCanvasReady }) => {
         } else {
           // Draw lines for multi-point strokes
           
-          ctx.beginPath();
-          ctx.moveTo(firstPoint.x, firstPoint.y);
-          
-          for (let j = 1; j < stroke.points.length; j++) {
-            const point = stroke.points[j];
-            if (!point) continue;
-            ctx.lineTo(point.x, point.y);
+          if (shape === 'circle') {
+            // For circle brushes, use standard stroke method
+            ctx.beginPath();
+            ctx.moveTo(firstPoint.x, firstPoint.y);
+            
+            for (let j = 1; j < stroke.points.length; j++) {
+              const point = stroke.points[j];
+              if (!point) continue;
+              ctx.lineTo(point.x, point.y);
+            }
+            ctx.stroke();
+          } else {
+            // For square brushes, draw a series of squares along the path
+            const halfSize = stroke.brushSize / 2;
+            
+            // Draw a square at the first point
+            ctx.fillRect(firstPoint.x - halfSize, firstPoint.y - halfSize, stroke.brushSize, stroke.brushSize);
+            
+            // Draw squares along each line segment
+            for (let j = 1; j < stroke.points.length; j++) {
+              const point = stroke.points[j];
+              const prevPoint = stroke.points[j-1];
+              if (!point || !prevPoint) continue;
+              
+              // Draw a square at the current point
+              ctx.fillRect(point.x - halfSize, point.y - halfSize, stroke.brushSize, stroke.brushSize);
+              
+              // Calculate distance between points
+              const dx = point.x - prevPoint.x;
+              const dy = point.y - prevPoint.y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              
+              // If distance is larger than half the brush size, interpolate points
+              if (distance > stroke.brushSize / 2) {
+                const steps = Math.ceil(distance / (stroke.brushSize / 2));
+                for (let k = 1; k < steps; k++) {
+                  const t = k / steps;
+                  const interpX = prevPoint.x + dx * t;
+                  const interpY = prevPoint.y + dy * t;
+                  ctx.fillRect(interpX - halfSize, interpY - halfSize, stroke.brushSize, stroke.brushSize);
+                }
+              }
+            }
           }
-          ctx.stroke();
         }
       }
     }
@@ -483,10 +518,35 @@ const DrawingCanvas = ({ onCanvasReady }) => {
       ctx.globalAlpha = 1.0;
     }
     
-    ctx.beginPath();
-    ctx.moveTo(lastPosition.x, lastPosition.y);
-    ctx.lineTo(offsetX, offsetY);
-    ctx.stroke();
+    if (brushShape === 'square') {
+      // For square brushes, draw a square at the current position
+      // This prevents the rotation issue seen when using lineTo with square brushes
+      const halfSize = brushSize / 2;
+      ctx.fillRect(offsetX - halfSize, offsetY - halfSize, brushSize, brushSize);
+      
+      // To create a continuous trail, draw squares along the line between last position and current position
+      // Calculate distance between points
+      const dx = offsetX - lastPosition.x;
+      const dy = offsetY - lastPosition.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // If distance is larger than half the brush size, interpolate points for a continuous trail
+      if (distance > brushSize / 2) {
+        const steps = Math.ceil(distance / (brushSize / 2));
+        for (let i = 1; i < steps; i++) {
+          const t = i / steps;
+          const interpX = lastPosition.x + dx * t;
+          const interpY = lastPosition.y + dy * t;
+          ctx.fillRect(interpX - halfSize, interpY - halfSize, brushSize, brushSize);
+        }
+      }
+    } else {
+      // For circle brushes, continue with the traditional line drawing
+      ctx.beginPath();
+      ctx.moveTo(lastPosition.x, lastPosition.y);
+      ctx.lineTo(offsetX, offsetY);
+      ctx.stroke();
+    }
     
     // Reset globalAlpha to default
     ctx.globalAlpha = 1.0;
