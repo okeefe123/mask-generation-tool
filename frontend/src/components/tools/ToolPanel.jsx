@@ -3,12 +3,12 @@ import { useState, useEffect } from 'react';
 import ImageUploader from '../ImageUploader';
 import DrawingTools from './DrawingTools';
 import ActionButtons from './ActionButtons';
-import { useAppContext } from '../../contexts/AppContext';
-import { useUIContext } from '../../contexts/UIContext';
+import { useImageContext } from '../../contexts/AppContexts';
+import { useUIContext } from '../../contexts/AppContexts';
 import { saveMask } from '../../services/api';
 
 const ToolPanel = ({ canvasElement }) => {
-  const { displayImage, imageId, originalImage, originalFileName, originalDimensions } = useAppContext();
+  const { displayImage, imageId, originalImage, originalFileName, originalDimensions } = useImageContext();
   const { setIsLoading, setError } = useUIContext();
   const [isSaving, setIsSaving] = useState(false);
   const [canvasError, setCanvasError] = useState(null);

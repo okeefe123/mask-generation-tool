@@ -1,8 +1,8 @@
 import { Flex, Box } from '@chakra-ui/react';
-import { useAppContext } from '../../contexts/AppContext';
+import { useImageContext } from '../../contexts/AppContexts';
 
 const Workspace = ({ toolPanel, canvasArea }) => {
-  const { displayImage } = useAppContext();
+  const { displayImage } = useImageContext();
   
   return (
     <Flex 

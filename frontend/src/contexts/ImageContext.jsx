@@ -18,6 +18,7 @@ export const ImageProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [savedStrokes, setSavedStrokes] = useState([]);
+  const [initialized, setInitialized] = useState(false);
   
   // Multiple images state
   const [availableImages, setAvailableImages] = useState([]);
@@ -79,15 +80,21 @@ export const ImageProvider = ({ children }) => {
     });
     // Reset drawing state when selecting a new image
     setSavedStrokes([]);
+    // Reset the initialized state for DrawingCanvas
+    setInitialized(false);
   }, []);
 
-  // Select image by index
+  // Preview image for selection
+  const [previewImage, setPreviewImage] = useState(null);
+  
+  // Select image by index (only updates preview, doesn't set the actual image)
   const selectImageByIndex = useCallback((index) => {
     if (index >= 0 && index < availableImages.length) {
       setSelectedImageIndex(index);
-      selectImage(availableImages[index]);
+      // Just set the preview image for the dropdown selection
+      setPreviewImage(availableImages[index]);
     }
-  }, [availableImages, selectImage]);
+  }, [availableImages]);
 
   // Reset all state
   const resetState = useCallback(() => {
@@ -174,6 +181,14 @@ export const ImageProvider = ({ children }) => {
     setError,
     savedStrokes,
     setSavedStrokes,
+    
+    // Preview image (for dropdown selection)
+    previewImage,
+    setPreviewImage,
+    
+    // Canvas initialization state
+    initialized,
+    setInitialized,
     
     // Multiple images state and methods
     availableImages,

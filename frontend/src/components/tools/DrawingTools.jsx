@@ -10,7 +10,7 @@ import {
   Tooltip,
   Box
 } from '@chakra-ui/react';
-import { useUIContext } from '../../contexts/UIContext';
+import { useUIContext } from '../../contexts/AppContexts';
 
 const DrawingTools = () => {
   const {

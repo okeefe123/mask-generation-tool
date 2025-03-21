@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useAppContext } from './AppContext';
+import { useImageContext } from './AppContexts';
 
 // Create context
 const CanvasContext = createContext();
@@ -15,7 +15,7 @@ export const useCanvasContext = () => {
 
 // Provider component
 export const CanvasProvider = ({ children }) => {
-  const { saveImageMask } = useAppContext();
+  const { saveImageMask } = useImageContext();
   
   // Canvas state
   const [strokes, setStrokes] = useState([]);

@@ -29,7 +29,7 @@ import {
   Image as ChakraImage,
 } from '@chakra-ui/react';
 import { useUIContext } from '../contexts/AppContexts';
-import { useImageContext } from '../contexts/ImageContext';
+import { useImageContext } from '../contexts/AppContexts';
 import { uploadImage, uploadMultipleImages } from '../services/api';
 import { fileToDataURL } from '../utils/imageProcessing';
 
@@ -53,6 +53,8 @@ const ImageUploader = () => {
     availableImages,
     selectedImageIndex,
     selectImageByIndex,
+    selectImage,
+    previewImage,
     fetchAvailableImages,
     isLoadingImages,
   } = useImageContext();
@@ -436,30 +438,19 @@ const ImageUploader = () => {
               const selectedImage = availableImages[selectedImageIndex];
               console.log("Opening selected image:", selectedImage);
               
-              // Get full URL with proper path
-              // Note: Django serves media files directly from their path without /api prefix
-              const fullImageUrl = selectedImage.file;
-              console.log("Image path from API:", fullImageUrl);
+              // Use selectImage to load the image to canvas (not just preview)
+              selectImage(selectedImage);
               
-              // The backend returns the path to the image file, but in development we need to use the full URL
-              // For Django's development server, we need to fix the URL
-              const imageUrl = getFullImageUrl(fullImageUrl);
-              console.log("Final image URL to display:", imageUrl);
-              
-              // Set the image data in context
-              setOriginalImage(imageUrl);
-              setDisplayImage(imageUrl);
-              setImageId(selectedImage.id);
-              setOriginalFileName(selectedImage.original_filename);
-              setOriginalDimensions({
-                width: selectedImage.width,
-                height: selectedImage.height
-              });
+              // Get canvas context to clear strokes
+              const canvas = document.querySelector('canvas');
+              if (canvas && canvas.clear) {
+                canvas.clear();
+              }
               
               // Show success toast
               toast({
-                title: 'Image loaded',
-                description: `Loaded ${selectedImage.original_filename} (${selectedImage.width}x${selectedImage.height})`,
+                title: 'Image loaded to canvas',
+                description: `Ready to edit ${selectedImage.original_filename} (${selectedImage.width}x${selectedImage.height})`,
                 status: 'success',
                 duration: 3000,
                 isClosable: true,
@@ -474,33 +465,33 @@ const ImageUploader = () => {
         </Button>
         
         {/* Preview of selected image from dropdown if available */}
-        {selectedImageIndex >= 0 && availableImages[selectedImageIndex] && (
+        {previewImage && (
           <Box mt={4} p={2} borderWidth="1px" borderRadius="md">
             <Text fontSize="sm" fontWeight="bold" mb={2}>
               Selected Image Preview:
             </Text>
             <Text fontSize="xs" color="gray.500" mb={2}>
-              Image name: {availableImages[selectedImageIndex].original_filename}
+              Image name: {previewImage.original_filename}
               <br />
-              Dimensions: {availableImages[selectedImageIndex].width}x{availableImages[selectedImageIndex].height}
+              Dimensions: {previewImage.width}x{previewImage.height}
               <br />
-              URL path: {availableImages[selectedImageIndex].file}
+              URL path: {previewImage.file}
             </Text>
             <ChakraImage
-              src={availableImages[selectedImageIndex].file}
-              alt={availableImages[selectedImageIndex].original_filename}
+              src={previewImage.file}
+              alt={previewImage.original_filename}
               maxH="200px"
               mx="auto"
               onError={(e) => {
                 // If direct file path fails, try with getFullImageUrl
                 console.error("Error loading image preview with direct path. Trying with getFullImageUrl");
-                e.target.src = getFullImageUrl(availableImages[selectedImageIndex].file);
+                e.target.src = getFullImageUrl(previewImage.file);
                 
                 // Add a second error handler in case the fixed URL also fails
                 e.target.onerror = () => {
                   console.error("Error loading image preview with both methods:",
-                    availableImages[selectedImageIndex].file,
-                    getFullImageUrl(availableImages[selectedImageIndex].file));
+                    previewImage.file,
+                    getFullImageUrl(previewImage.file));
                   toast({
                     title: 'Image preview error',
                     description: 'Could not load image preview. The URL may be incorrect.',

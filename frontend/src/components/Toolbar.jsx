@@ -20,7 +20,7 @@ import {
   ModalCloseButton,
 } from '@chakra-ui/react';
 import { useState, useEffect, useRef } from 'react';
-import { useAppContext, useUIContext } from '../contexts/AppContexts';
+import { useImageContext, useUIContext } from '../contexts/AppContexts';
 import { saveMask } from '../services/api';
 
 const Toolbar = ({ canvasElement }) => {
@@ -38,7 +38,7 @@ const Toolbar = ({ canvasElement }) => {
     imageId,
     originalFileName,
     originalDimensions,
-  } = useAppContext();
+  } = useImageContext();
   
   const {
     drawingMode,
