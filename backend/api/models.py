@@ -56,7 +56,6 @@ def mask_upload_path(instance, filename):
     ext = os.path.splitext(filename)[1].lower()
     new_filename = f"{uuid.uuid4().hex}{ext}"
     # Make sure to include 'masks/' in the path for test compatibility
-    return f"masks/{new_filename}"
     return os.path.join('masks', new_filename)
 
 
