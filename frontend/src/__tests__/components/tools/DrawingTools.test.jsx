@@ -95,8 +95,20 @@ describe('DrawingTools Component', () => {
     // Click the small brush size button
     fireEvent.click(screen.getByRole('button', { name: /small/i }));
     
-    // Check that setBrushSize was called with 5
-    expect(mockSetBrushSize).toHaveBeenCalledWith(5);
+    // Check that setBrushSize was called with 10 (10% of range)
+    expect(mockSetBrushSize).toHaveBeenCalledWith(10);
+    
+    // Click the medium brush size button
+    fireEvent.click(screen.getByRole('button', { name: /medium/i }));
+    
+    // Check that setBrushSize was called with 50 (50% of range)
+    expect(mockSetBrushSize).toHaveBeenCalledWith(50);
+    
+    // Click the large brush size button
+    fireEvent.click(screen.getByRole('button', { name: /large/i }));
+    
+    // Check that setBrushSize was called with 90 (90% of range)
+    expect(mockSetBrushSize).toHaveBeenCalledWith(90);
   });
   
   it('displays the brush preview', () => {

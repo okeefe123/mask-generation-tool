@@ -87,14 +87,30 @@ const DrawingTools = () => {
           </Text>
           <Box
             borderRadius={brushShape === 'circle' ? "full" : "0"}
-            bg={drawingMode === 'draw' ? 'white' : 'white'}
-            border="1px solid"
-            borderColor="gray.300"
-            width={`${Math.min(brushSize, 20)}px`}
-            height={`${Math.min(brushSize, 20)}px`}
+            bg={drawingMode === 'draw' ? 'white' : 'transparent'}
+            border="2px solid"
+            borderColor={drawingMode === 'draw' ? 'brand.500' : 'red.500'}
+            width={`${brushSize}px`}
+            height={`${brushSize}px`}
             display="inline-block"
             mx={1}
             data-testid="brush-preview"
+            minW="5px"
+            minH="5px"
+            boxShadow="sm"
+            position="relative"
+            _after={brushShape === 'circle' && drawingMode === 'erase' ? {
+              content: '""',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '75%',
+              height: '75%',
+              borderRadius: 'full',
+              border: '2px solid',
+              borderColor: 'red.500',
+            } : {}}
           />
         </HStack>
         <Slider
@@ -113,25 +129,25 @@ const DrawingTools = () => {
         <HStack justifyContent="space-between" mt={2}>
           <Button
             size="xs"
-            onClick={() => setBrushSize(5)}
+            onClick={() => setBrushSize(10)}
             variant="ghost"
-            colorScheme={brushSize === 5 ? "brand" : "gray"}
+            colorScheme={brushSize === 10 ? "brand" : "gray"}
           >
             Small
           </Button>
           <Button
             size="xs"
-            onClick={() => setBrushSize(15)}
+            onClick={() => setBrushSize(50)}
             variant="ghost"
-            colorScheme={brushSize === 15 ? "brand" : "gray"}
+            colorScheme={brushSize === 50 ? "brand" : "gray"}
           >
             Medium
           </Button>
           <Button
             size="xs"
-            onClick={() => setBrushSize(30)}
+            onClick={() => setBrushSize(90)}
             variant="ghost"
-            colorScheme={brushSize === 30 ? "brand" : "gray"}
+            colorScheme={brushSize === 90 ? "brand" : "gray"}
           >
             Large
           </Button>
