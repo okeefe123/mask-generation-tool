@@ -61,6 +61,8 @@ const DrawingCanvas = ({ onCanvasReady }) => {
     
     ctx.lineWidth = brushSize;
     ctx.strokeStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1.0)';
+    // Add fillStyle to match strokeStyle for fill operations (dots)
+    ctx.fillStyle = drawingMode === 'draw' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 1.0)';
     // Use 'destination-out' for eraser to completely remove pixels
     ctx.globalCompositeOperation = drawingMode === 'draw' ? 'source-over' : 'destination-out';
   }, [brushSize, drawingMode, brushShape]);
