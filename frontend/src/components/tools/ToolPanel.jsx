@@ -6,13 +6,23 @@ import { useImageContext } from '../../contexts/AppContexts';
 import { useUIContext } from '../../contexts/AppContexts';
 import { saveMask } from '../../services/api';
 
+// Create a shared variable to store the fetchAvailableImages function
+let globalFetchAvailableImages = null;
+
 const ToolPanel = ({ canvasElement }) => {
-  const { displayImage, imageId, originalImage, originalFileName, originalDimensions } = useImageContext();
+  const { displayImage, imageId, originalImage, originalFileName, originalDimensions, fetchAvailableImages } = useImageContext();
   const { setIsLoading, setError } = useUIContext();
   const [isSaving, setIsSaving] = useState(false);
   const [canvasError, setCanvasError] = useState(null);
   const toast = useToast();
   
+  // Store the fetchAvailableImages function in the global variable so it can be accessed by handleSaveMask
+  useEffect(() => {
+    if (fetchAvailableImages) {
+      globalFetchAvailableImages = fetchAvailableImages;
+    }
+  }, [fetchAvailableImages]);
+
   // Check canvas validity when it changes
   useEffect(() => {
     if (!canvasElement) {
@@ -316,8 +326,21 @@ export const handleSaveMask = async (canvasElement, imageId, originalImage, toas
     const maskData = await new Promise((resolve, reject) => {
       canvasElement.toBlob((blob) => {
         if (blob) {
-          // Create a File object from the blob with a proper name
-          const maskFile = new File([blob], 'mask.png', { type: 'image/png' });
+          // Get the base file name from the original image path
+          let maskFileName = 'mask.png';
+          
+          // If originalImage is a URL, extract the filename
+          if (originalImage && typeof originalImage === 'string') {
+            const urlParts = originalImage.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            // Keep the same extension if possible
+            const baseFileName = fileName.split('.')[0];
+            const extension = fileName.split('.').pop();
+            maskFileName = `${baseFileName}.${extension}`;
+          }
+          
+          // Create a File object from the blob with the proper name
+          const maskFile = new File([blob], maskFileName, { type: 'image/png' });
           resolve(maskFile);
         } else {
           reject(new Error('Failed to convert canvas to blob'));
@@ -335,6 +358,14 @@ export const handleSaveMask = async (canvasElement, imageId, originalImage, toas
       duration: 3000,
       isClosable: true,
     });
+    
+    // Since we're using a filesystem-based approach, refresh available images
+    // This will remove the image from the list if a mask was created for it
+    if (globalFetchAvailableImages) {
+      setTimeout(() => {
+        globalFetchAvailableImages();
+      }, 500); // Short delay to allow server to process files
+    }
     
     return response;
   } catch (error) {

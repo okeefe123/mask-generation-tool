@@ -36,9 +36,9 @@ export const ImageProvider = ({ children }) => {
       // Get all masks from the server
       const masksResponse = await getAllMasks();
       
-      // Extract filenames from masks
+      // Extract filenames from masks (without extensions)
       const maskFilenames = masksResponse.map(mask => {
-        // Extract base filename without extension and path
+        // Extract base filename without extension
         const filename = mask.file.split('/').pop().split('.')[0];
         return filename;
       });
@@ -47,6 +47,7 @@ export const ImageProvider = ({ children }) => {
       
       // Filter images that don't have masks
       const availableImgs = imagesResponse.filter(image => {
+        // Get base filename without extension
         const imageFilename = image.original_filename.split('.')[0];
         return !maskFilenames.includes(imageFilename);
       });
@@ -57,6 +58,17 @@ export const ImageProvider = ({ children }) => {
       if (availableImgs.length > 0 && selectedImageIndex === -1) {
         setSelectedImageIndex(0);
         selectImage(availableImgs[0]);
+      } else if (availableImgs.length === 0) {
+        // Reset if no images are available
+        setSelectedImageIndex(-1);
+        setPreviewImage(null);
+      } else if (selectedImageIndex >= availableImgs.length) {
+        // If the selected index is out of bounds (e.g., after saving a mask that removes it from the list)
+        // select the first available image
+        setSelectedImageIndex(0);
+        if (availableImgs.length > 0) {
+          selectImage(availableImgs[0]);
+        }
       }
     } catch (error) {
       console.error('Error fetching available images:', error);
