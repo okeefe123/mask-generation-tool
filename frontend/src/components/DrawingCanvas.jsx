@@ -366,6 +366,18 @@ const DrawingCanvas = ({ onCanvasReady }) => {
         cursorCanvas.height = height;
       }
       
+      // Store original image dimensions as data attributes for mask generation
+      if (originalDimensions.width && originalDimensions.height) {
+        canvas.setAttribute('data-original-width', originalDimensions.width);
+        canvas.setAttribute('data-original-height', originalDimensions.height);
+        console.log('Stored original dimensions as data attributes:', originalDimensions.width, 'x', originalDimensions.height);
+      } else if (sourceImg.naturalWidth && sourceImg.naturalHeight) {
+        // Fallback to image natural dimensions if available
+        canvas.setAttribute('data-original-width', sourceImg.naturalWidth);
+        canvas.setAttribute('data-original-height', sourceImg.naturalHeight);
+        console.log('Stored natural dimensions as data attributes:', sourceImg.naturalWidth, 'x', sourceImg.naturalHeight);
+      }
+      
       // Log canvas dimensions for debugging
       console.log('Canvas initialized:', {
         canvasWidth: canvas.width,
@@ -421,6 +433,46 @@ const DrawingCanvas = ({ onCanvasReady }) => {
   useEffect(() => {
     redrawCanvas();
   }, [strokes, redrawCanvas]);
+  
+  // Add a specific effect to clear the canvas when a new image is loaded
+  useEffect(() => {
+    if (displayImage) {
+      console.log('New image loaded, clearing canvas');
+      if (canvasRef.current) {
+        // Full canvas clearing operation
+        const ctx = canvasRef.current.getContext('2d');
+        
+        // Save context state
+        ctx.save();
+        
+        // Ensure composite operation is set to source-over for proper clearing
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Clear the entire canvas
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        
+        // For extra measure, try to force a visual reset by drawing a transparent rect
+        ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        
+        // Restore context state
+        ctx.restore();
+        
+        console.log('Canvas fully cleared for new image');
+      }
+      
+      // Reset drawing state completely
+      setCursorPosition({ x: 0, y: 0 });
+      setLastPosition({ x: 0, y: 0 });
+      setIsDrawing(false);
+      currentStroke.current = null;
+      
+      // Make sure we redraw with proper context settings
+      if (canvasRef.current) {
+        setupContext(canvasRef.current.getContext('2d'));
+      }
+    }
+  }, [displayImage, setupContext]);
   
   // Update context when drawing mode or brush size changes
   useEffect(() => {

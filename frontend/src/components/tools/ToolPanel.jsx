@@ -18,9 +18,23 @@ const ToolPanel = ({ canvasElement }) => {
   
   // Store the fetchAvailableImages function in the global variable so it can be accessed by handleSaveMask
   useEffect(() => {
-    if (fetchAvailableImages) {
+    if (fetchAvailableImages && typeof fetchAvailableImages === 'function') {
+      console.log('Storing fetchAvailableImages function in global variable');
       globalFetchAvailableImages = fetchAvailableImages;
+      
+      // For debugging - add a global function to check if it's available
+      window.checkFetchAvailableImages = () => {
+        return !!globalFetchAvailableImages;
+      };
     }
+    
+    // Cleanup function to ensure proper cleanup
+    return () => {
+      // Don't clear the global function when unmounting, as it might be needed by other components
+      if (window.checkFetchAvailableImages) {
+        delete window.checkFetchAvailableImages;
+      }
+    };
   }, [fetchAvailableImages]);
 
   // Check canvas validity when it changes
@@ -180,24 +194,28 @@ const ToolPanel = ({ canvasElement }) => {
       
       // Convert to binary mask (0 or 255)
       for (let i = 0; i < data.length; i += 4) {
-        // Check if the pixel is from a brush stroke (non-black with opacity)
-        // If it's completely black (0,0,0,255), it's likely background
-        // If it has some color value and opacity, it's a brush stroke
-        const isStrokePixel = (data[i+3] > 0) &&
-                             !(data[i] === 0 && data[i+1] === 0 && data[i+2] === 0);
+        // Check if the pixel is from a brush stroke with significant opacity
+        // The original drawing canvas should have non-zero alpha for brush strokes
+        // and some color value that's not pure black
+        const alpha = data[i+3];
+        const hasColor = data[i] > 10 || data[i+1] > 10 || data[i+2] > 10;
+        
+        // A pixel is a stroke if it has enough opacity AND either has color
+        // OR is not pure black (to catch white/gray brush strokes)
+        const isStrokePixel = alpha > 50 && hasColor;
         
         if (isStrokePixel) {
-          // This is a brush stroke area - set to white
+          // This is a brush stroke area - set to pure white
           data[i] = 255;    // R
           data[i+1] = 255;  // G
           data[i+2] = 255;  // B
-          data[i+3] = 255;  // A
+          data[i+3] = 255;  // A (fully opaque)
         } else {
-          // This is background - set to black
+          // This is background - set to pure black
           data[i] = 0;      // R
           data[i+1] = 0;    // G
           data[i+2] = 0;    // B
-          data[i+3] = 255;  // A
+          data[i+3] = 255;  // A (fully opaque)
         }
       }
       
@@ -322,24 +340,131 @@ export const handleSaveMask = async (canvasElement, imageId, originalImage, toas
   try {
     setIsLoading(true);
     
-    // Get canvas data
+    // Get the original image dimensions from the backend if needed
+    let originalWidth, originalHeight;
+    
+    // Try to get dimensions from the canvasElement's attributes
+    if (canvasElement.getAttribute('data-original-width') && canvasElement.getAttribute('data-original-height')) {
+      originalWidth = parseInt(canvasElement.getAttribute('data-original-width'));
+      originalHeight = parseInt(canvasElement.getAttribute('data-original-height'));
+      console.log('Using data attributes for original dimensions:', originalWidth, originalHeight);
+    } else {
+      // If we have originalImage URL, we can try to load it to get dimensions
+      console.log('Attempting to determine original image dimensions');
+      
+      try {
+        // Get image info from the backend based on imageId
+        const response = await fetch(`/api/images/${imageId}/`);
+        if (response.ok) {
+          const imageData = await response.json();
+          originalWidth = imageData.width;
+          originalHeight = imageData.height;
+          console.log('Got dimensions from API:', originalWidth, originalHeight);
+        } else {
+          throw new Error('Failed to get image dimensions from API');
+        }
+      } catch (error) {
+        console.error('Error getting original dimensions:', error);
+        // Fallback to canvas dimensions if we can't get original dimensions
+        originalWidth = canvasElement.width;
+        originalHeight = canvasElement.height;
+        console.warn('Using canvas dimensions as fallback:', originalWidth, originalHeight);
+      }
+    }
+    
+    // Get canvas data and convert to binary mask
     const maskData = await new Promise((resolve, reject) => {
-      canvasElement.toBlob((blob) => {
-        if (blob) {
-          // Get the base file name from the original image path
-          let maskFileName = 'mask.png';
+      // Create a temporary canvas for the binary mask at ORIGINAL dimensions
+      const tempCanvas = document.createElement('canvas');
+      const ctx = canvasElement.getContext('2d');
+      
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      
+      // Set the temp canvas to the ORIGINAL image dimensions (not canvas dimensions)
+      tempCanvas.width = originalWidth;
+      tempCanvas.height = originalHeight;
+      const tempCtx = tempCanvas.getContext('2d');
+      
+      console.log('Creating mask at original dimensions:', originalWidth, 'x', originalHeight);
+      console.log('Current canvas dimensions:', canvasElement.width, 'x', canvasElement.height);
+      
+      // First fill with black (background)
+      tempCtx.fillStyle = 'black';
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      
+      // Calculate scaling needed to map canvas drawing to original dimensions
+      const scaleX = originalWidth / canvasElement.width;
+      const scaleY = originalHeight / canvasElement.height;
+      
+      // Get the drawing data from canvas
+      const sourceData = ctx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+      const targetData = tempCtx.createImageData(originalWidth, originalHeight);
+      
+      // Process each pixel in the target (original size) dimensions
+      for (let y = 0; y < originalHeight; y++) {
+        for (let x = 0; x < originalWidth; x++) {
+          // Map to the corresponding source pixel
+          const sourceX = Math.floor(x / scaleX);
+          const sourceY = Math.floor(y / scaleY);
           
-          // If originalImage is a URL, extract the filename
-          if (originalImage && typeof originalImage === 'string') {
-            const urlParts = originalImage.split('/');
-            const fileName = urlParts[urlParts.length - 1];
-            // Keep the same extension if possible
-            const baseFileName = fileName.split('.')[0];
-            const extension = fileName.split('.').pop();
-            maskFileName = `${baseFileName}.${extension}`;
+          // Ensure we're within bounds
+          if (sourceX >= 0 && sourceX < canvasElement.width && 
+              sourceY >= 0 && sourceY < canvasElement.height) {
+            
+            // Get source pixel data
+            const sourceIndex = (sourceY * canvasElement.width + sourceX) * 4;
+            const alpha = sourceData.data[sourceIndex + 3];
+            const hasColor = sourceData.data[sourceIndex] > 10 || 
+                            sourceData.data[sourceIndex + 1] > 10 || 
+                            sourceData.data[sourceIndex + 2] > 10;
+            
+            // A pixel is a stroke if it has enough opacity AND has color
+            const isStrokePixel = alpha > 50 && hasColor;
+            
+            // Set target pixel
+            const targetIndex = (y * originalWidth + x) * 4;
+            
+            if (isStrokePixel) {
+              // Set to pure white
+              targetData.data[targetIndex] = 255;      // R
+              targetData.data[targetIndex + 1] = 255;  // G
+              targetData.data[targetIndex + 2] = 255;  // B
+              targetData.data[targetIndex + 3] = 255;  // A
+            } else {
+              // Set to pure black
+              targetData.data[targetIndex] = 0;        // R
+              targetData.data[targetIndex + 1] = 0;    // G
+              targetData.data[targetIndex + 2] = 0;    // B
+              targetData.data[targetIndex + 3] = 255;  // A
+            }
           }
-          
-          // Create a File object from the blob with the proper name
+        }
+      }
+      
+      // Put the binary mask back to the temp canvas
+      tempCtx.putImageData(targetData, 0, 0);
+      
+      // Get the base file name from the original image path
+      let maskFileName = 'mask.png';
+      
+      // If originalImage is a URL, extract the filename
+      if (originalImage && typeof originalImage === 'string') {
+        const urlParts = originalImage.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        // Keep the same extension if possible
+        const baseFileName = fileName.split('.')[0];
+        const extension = fileName.split('.').pop();
+        maskFileName = `${baseFileName}.${extension}`;
+        console.log('Using filename from original image:', maskFileName);
+      }
+      
+      // Convert to blob and create a File object
+      tempCanvas.toBlob((blob) => {
+        if (blob) {
+          // Create a File object with the proper name
           const maskFile = new File([blob], maskFileName, { type: 'image/png' });
           resolve(maskFile);
         } else {
@@ -359,12 +484,43 @@ export const handleSaveMask = async (canvasElement, imageId, originalImage, toas
       isClosable: true,
     });
     
+    // Store the current originalFileName before refreshing the images
+    // This will help us identify which image was just masked
+    const maskedFileName = originalImage && typeof originalImage === 'string' 
+      ? originalImage.split('/').pop() 
+      : null;
+    
+    console.log('Image that was just masked:', maskedFileName);
+    
     // Since we're using a filesystem-based approach, refresh available images
     // This will remove the image from the list if a mask was created for it
     if (globalFetchAvailableImages) {
-      setTimeout(() => {
-        globalFetchAvailableImages();
-      }, 500); // Short delay to allow server to process files
+      console.log('Refreshing available images after mask save');
+      
+      // We need to give the server time to process the saved mask
+      setTimeout(async () => {
+        // First, manually force the image to be removed from the list
+        // This is specifically to handle the last image case and ensure immediate UI updates
+        if (window && window.forceMaskUpdate) {
+          window.forceMaskUpdate(maskedFileName);
+        }
+        
+        // Then refresh the available images
+        await globalFetchAvailableImages();
+        
+        // Add a reminder toast after images are refreshed
+        setTimeout(() => {
+          toast({
+            title: 'Next image preview loaded',
+            description: 'Click "Open Selected Image" button to load it into the canvas.',
+            status: 'info',
+            duration: 5000,
+            isClosable: true,
+          });
+        }, 500);
+      }, 1000); // Delay to allow for server processing
+    } else {
+      console.error('fetchAvailableImages function is not available');
     }
     
     return response;

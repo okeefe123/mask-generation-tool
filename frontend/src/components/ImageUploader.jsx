@@ -63,6 +63,10 @@ const ImageUploader = () => {
     previewImage,
     fetchAvailableImages,
     isLoadingImages,
+    setSelectedImageIndex,
+    setPreviewImage,
+    setSavedStrokes,
+    setInitialized,
   } = useImageContext();
   
   const {
@@ -313,8 +317,63 @@ const ImageUploader = () => {
   const handleImageSelect = useCallback((e) => {
     const index = parseInt(e.target.value, 10);
     console.log("Selected image index:", index);
-    selectImageByIndex(index);
-  }, [selectImageByIndex]);
+    
+    // Only set the preview image without loading it into the canvas
+    if (index >= 0 && index < availableImages.length) {
+      setSelectedImageIndex(index);
+      const selectedImage = availableImages[index];
+      // Only set preview image, not the actual canvas image
+      setPreviewImage(selectedImage);
+      
+      toast({
+        title: 'Image preview loaded',
+        description: `${selectedImage.original_filename} selected. Click "Open in Canvas" to edit.`,
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+    } else if (index === -1) {
+      // Clear selection
+      setSelectedImageIndex(-1);
+      setPreviewImage(null);
+    }
+  }, [availableImages, setPreviewImage, setSelectedImageIndex, toast]);
+
+  // New function to handle opening the selected image in the canvas
+  const handleOpenInCanvas = useCallback(() => {
+    if (selectedImageIndex >= 0 && selectedImageIndex < availableImages.length) {
+      console.log('Opening image in canvas, performing full reset first');
+
+      // Clear any existing canvas drawings first - this is crucial
+      // This ensures a fresh canvas for the new image
+      setSavedStrokes([]);
+      setInitialized(false);
+      
+      // Get access to the canvas directly if possible (for more immediate clearing)
+      const canvasElement = document.querySelector('canvas[data-component="DrawingCanvas"]');
+      if (canvasElement) {
+        try {
+          const ctx = canvasElement.getContext('2d');
+          ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+          console.log('Canvas cleared directly via DOM access');
+        } catch (err) {
+          console.warn('Could not clear canvas directly:', err);
+        }
+      }
+      
+      // Actually load the image into the canvas
+      const selectedImage = availableImages[selectedImageIndex];
+      selectImage(selectedImage);
+      
+      toast({
+        title: 'Image loaded in canvas',
+        description: `${selectedImage.original_filename} loaded and ready for annotation`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }, [availableImages, selectedImageIndex, selectImage, toast, setSavedStrokes, setInitialized]);
 
   // Get the full image URL (adding base URL if needed)
   const getFullImageUrl = useCallback((urlPath) => {
@@ -460,7 +519,7 @@ const ImageUploader = () => {
           )}
         </FormControl>
         
-        {/* Image Preview Section - Shows after selection but before opening */}
+        {/* Image Preview Section - Only show if we have a preview image */}
         {previewImage && (
           <Box 
             mb={4} 
@@ -502,43 +561,21 @@ const ImageUploader = () => {
                 <Text fontSize="xs" color="gray.600" mt={1}>
                   {previewImage.width} × {previewImage.height} px
                 </Text>
+                
+                {/* Add Open in Canvas button */}
+                <Button
+                  mt={3}
+                  size="sm"
+                  colorScheme="green"
+                  width="100%"
+                  onClick={handleOpenInCanvas}
+                >
+                  Open Selected Image
+                </Button>
               </Box>
             </Flex>
           </Box>
         )}
-        
-        <Button
-          colorScheme="green"
-          onClick={() => {
-            if (selectedImageIndex >= 0 && selectedImageIndex < availableImages.length) {
-              const selectedImage = availableImages[selectedImageIndex];
-              console.log("Opening selected image:", selectedImage);
-              
-              // Use selectImage to load the image to canvas (not just preview)
-              selectImage(selectedImage);
-              
-              // Get canvas context to clear strokes
-              const canvas = document.querySelector('canvas');
-              if (canvas && canvas.clear) {
-                canvas.clear();
-              }
-              
-              // Show success toast
-              toast({
-                title: 'Image loaded to canvas',
-                description: `Ready to edit ${selectedImage.original_filename} (${selectedImage.width}x${selectedImage.height})`,
-                status: 'success',
-                duration: 3000,
-                isClosable: true,
-              });
-            }
-          }}
-          isDisabled={selectedImageIndex < 0 || isLoadingImages}
-          width="100%"
-          size="md"
-        >
-          Open Selected Image
-        </Button>
       </Box>
       
       {/* Upload Results Modal */}

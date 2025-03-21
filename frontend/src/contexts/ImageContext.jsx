@@ -25,6 +25,113 @@ export const ImageProvider = ({ children }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(-1);
   const [imagesWithMasks, setImagesWithMasks] = useState([]);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
+  
+  // Preview image for selection - moved up to fix reference error
+  const [previewImage, setPreviewImage] = useState(null);
+
+  // Clear all image-related state when there are no images
+  const clearImageState = useCallback(() => {
+    console.log('Clearing image state as no images are available');
+    setOriginalImage(null);
+    setDisplayImage(null);
+    setImageId(null);
+    setOriginalFileName(null);
+    setOriginalDimensions({ width: 0, height: 0 });
+    setSelectedImageIndex(-1);
+    setPreviewImage(null);
+    setSavedStrokes([]);
+    setInitialized(false);
+  }, []);
+
+  // Manually handle an image being masked (for immediate UI updates)
+  const forceMaskUpdate = useCallback((filename) => {
+    if (!filename) return;
+    
+    console.log('Force updating UI for masked image:', filename);
+    
+    // Extract just the filename without path
+    const shortFilename = filename.split('/').pop();
+    
+    // Check if this is the currently selected image
+    const isCurrentImage = originalFileName === shortFilename;
+    
+    // Get the current state before updates
+    const currentImages = [...availableImages];
+    const maskedImageIndex = currentImages.findIndex(img => 
+      img.original_filename === shortFilename
+    );
+    
+    if (maskedImageIndex === -1) {
+      console.log('Image not found in available images list:', shortFilename);
+      return;
+    }
+    
+    // Update the masks list
+    const baseFilename = shortFilename.split('.')[0];
+    setImagesWithMasks(prev => {
+      if (!prev.includes(baseFilename)) {
+        return [...prev, baseFilename];
+      }
+      return prev;
+    });
+    
+    // Remove the image from the available images list
+    setAvailableImages(prev => 
+      prev.filter(img => img.original_filename !== shortFilename)
+    );
+    
+    // If this was the current image, we need to select a new one
+    if (isCurrentImage) {
+      console.log('Current image was masked, clearing canvas state');
+      
+      // Clear the canvas immediately
+      setOriginalImage(null);
+      setDisplayImage(null);
+      setImageId(null);
+      setOriginalFileName(null);
+      setOriginalDimensions({ width: 0, height: 0 });
+      setSavedStrokes([]);
+      setInitialized(false);
+      
+      // Select the next image in the list (if any)
+      const remainingImages = currentImages.filter(img => 
+        img.original_filename !== shortFilename
+      );
+      
+      if (remainingImages.length > 0) {
+        // We have remaining images
+        let nextIndex = maskedImageIndex < remainingImages.length ? maskedImageIndex : 0;
+        console.log('Setting next preview image after masking, index:', nextIndex);
+        
+        // Only set preview and index, not the actual image
+        if (nextIndex < remainingImages.length) {
+          setSelectedImageIndex(nextIndex);
+          setPreviewImage(remainingImages[nextIndex]);
+        }
+      } else {
+        // No remaining images, clear the selection
+        console.log('No remaining images after masking, clearing state');
+        setSelectedImageIndex(-1);
+        setPreviewImage(null);
+      }
+    }
+  }, [availableImages, originalFileName, setImagesWithMasks, setAvailableImages, 
+      setOriginalImage, setDisplayImage, setImageId, setOriginalFileName, 
+      setOriginalDimensions, setSavedStrokes, setInitialized, setSelectedImageIndex, setPreviewImage]);
+  
+  // Expose the forceMaskUpdate function globally for the save mask handler to use
+  useEffect(() => {
+    if (window) {
+      window.forceMaskUpdate = forceMaskUpdate;
+    }
+    
+    // Cleanup
+    return () => {
+      if (window && window.forceMaskUpdate) {
+        delete window.forceMaskUpdate;
+      }
+    };
+  }, [forceMaskUpdate]);
 
   // Fetch all available images (those without masks)
   const fetchAvailableImages = useCallback(async () => {
@@ -52,22 +159,37 @@ export const ImageProvider = ({ children }) => {
         return !maskFilenames.includes(imageFilename);
       });
       
+      console.log(`After filtering: ${availableImgs.length} images available`);
       setAvailableImages(availableImgs);
       
-      // Select the first available image if any exist and none is selected
-      if (availableImgs.length > 0 && selectedImageIndex === -1) {
+      // Handle the case where there are no available images
+      if (availableImgs.length === 0) {
+        clearImageState();
+        return;
+      }
+      
+      // Determine if the current preview image is still valid
+      const currentPreviewStillValid = previewImage && availableImgs.some(img => 
+        img.id === previewImage.id
+      );
+      
+      // If the current preview is no longer valid, select a new one
+      if (!currentPreviewStillValid) {
+        // Select the first available image for preview
         setSelectedImageIndex(0);
-        selectImage(availableImgs[0]);
-      } else if (availableImgs.length === 0) {
-        // Reset if no images are available
-        setSelectedImageIndex(-1);
-        setPreviewImage(null);
+        setPreviewImage(availableImgs[0]);
+        console.log('Current preview image no longer valid, selecting first available image');
       } else if (selectedImageIndex >= availableImgs.length) {
-        // If the selected index is out of bounds (e.g., after saving a mask that removes it from the list)
-        // select the first available image
+        // If the selected index is out of bounds, select the first available image
         setSelectedImageIndex(0);
-        if (availableImgs.length > 0) {
-          selectImage(availableImgs[0]);
+        setPreviewImage(availableImgs[0]);
+        console.log('Selected index out of bounds, selecting first available image');
+      } else {
+        // Ensure the preview matches the selected index
+        const currentIndexImage = availableImgs[selectedImageIndex];
+        if (currentIndexImage && (!previewImage || currentIndexImage.id !== previewImage.id)) {
+          setPreviewImage(currentIndexImage);
+          console.log('Updating preview to match selected index');
         }
       }
     } catch (error) {
@@ -76,37 +198,62 @@ export const ImageProvider = ({ children }) => {
     } finally {
       setIsLoadingImages(false);
     }
-  }, [selectedImageIndex]);
+  }, [selectedImageIndex, clearImageState, previewImage]);
 
   // Select an image from available images
   const selectImage = useCallback((image) => {
-    if (!image) return;
+    if (!image) {
+      console.log('No image provided to selectImage');
+      return;
+    }
     
-    setOriginalImage(image.file);
-    setDisplayImage(image.file);
-    setImageId(image.id);
-    setOriginalFileName(image.original_filename);
-    setOriginalDimensions({
-      width: image.width,
-      height: image.height
-    });
-    // Reset drawing state when selecting a new image
-    setSavedStrokes([]);
-    // Reset the initialized state for DrawingCanvas
+    console.log('Setting active image:', image.original_filename);
+    
+    // IMPORTANT: Order matters here for proper canvas clearing
+    
+    // Step 1: Set initialized to false FIRST to prevent any redrawing
     setInitialized(false);
+    
+    // Step 2: Clear saved strokes array
+    setSavedStrokes([]);
+    
+    // Step 3: Temporarily clear display image to force useEffect in DrawingCanvas to trigger
+    setDisplayImage(null);
+    
+    // Step 4: Add a small delay before setting the new image to ensure clearing happens first
+    setTimeout(() => {
+      // Step 5: Set all the new image data
+      setOriginalImage(image.file);
+      setDisplayImage(image.file);
+      setImageId(image.id);
+      setOriginalFileName(image.original_filename);
+      setOriginalDimensions({
+        width: image.width,
+        height: image.height
+      });
+      
+      // Also set preview image for consistency
+      setPreviewImage(image);
+      
+      console.log('Canvas reset complete for new image:', image.original_filename);
+    }, 10); // Small delay to ensure clearing happens before new image is set
   }, []);
 
-  // Preview image for selection
-  const [previewImage, setPreviewImage] = useState(null);
-  
-  // Select image by index (only updates preview, doesn't set the actual image)
+  // Select image by index - now actually selects the image too, not just preview
   const selectImageByIndex = useCallback((index) => {
     if (index >= 0 && index < availableImages.length) {
+      console.log(`Selecting image at index ${index}:`, availableImages[index].original_filename);
       setSelectedImageIndex(index);
-      // Just set the preview image for the dropdown selection
-      setPreviewImage(availableImages[index]);
+      // Set both preview and actual image
+      const selectedImage = availableImages[index];
+      setPreviewImage(selectedImage);
+      selectImage(selectedImage);
+    } else if (index === -1 || availableImages.length === 0) {
+      // Clear selection if index is -1 or there are no available images
+      console.log('Clearing image selection');
+      clearImageState();
     }
-  }, [availableImages]);
+  }, [availableImages, selectImage, clearImageState]);
 
   // Reset all state
   const resetState = useCallback(() => {
@@ -122,6 +269,7 @@ export const ImageProvider = ({ children }) => {
     setError(null);
     setSavedStrokes([]);
     setSelectedImageIndex(-1);
+    setPreviewImage(null);
   }, []);
 
   // Calculate scale factor based on viewport and image dimensions
@@ -145,21 +293,8 @@ export const ImageProvider = ({ children }) => {
     try {
       const hasMask = await checkImageHasMask(filename);
       if (hasMask) {
-        // Remove the masked image from available images
-        setAvailableImages(prev =>
-          prev.filter(img => img.original_filename !== filename)
-        );
-        
-        // Update images with masks
-        setImagesWithMasks(prev => [...prev, filename.split('.')[0]]);
-        
-        // If the current image was masked, select the next available one
-        if (originalFileName === filename && availableImages.length > 1) {
-          const nextIndex = selectedImageIndex < availableImages.length - 1
-            ? selectedImageIndex
-            : 0;
-          selectImageByIndex(nextIndex);
-        }
+        // Immediately apply the UI update using our force update function
+        forceMaskUpdate(filename);
         return true;
       }
       return false;
@@ -167,7 +302,7 @@ export const ImageProvider = ({ children }) => {
       console.error(`Error checking if image ${filename} has mask:`, error);
       return false;
     }
-  }, [availableImages, originalFileName, selectedImageIndex, selectImageByIndex]);
+  }, [forceMaskUpdate]);
 
   const value = {
     // Single image state
@@ -210,6 +345,8 @@ export const ImageProvider = ({ children }) => {
     selectImage,
     isLoadingImages,
     imagesWithMasks,
+    clearImageState,
+    forceMaskUpdate,
     
     // Actions
     resetState,
