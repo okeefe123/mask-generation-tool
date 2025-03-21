@@ -110,7 +110,7 @@ const CanvasArea = ({ onCanvasReady }) => {
             }
           }}
         >
-          {/* Debug info overlay */}
+          {/* Debug info overlay - Commented out to remove image description from top-left corner
           <Box
             position="absolute"
             top="0"
@@ -127,6 +127,7 @@ const CanvasArea = ({ onCanvasReady }) => {
             <Text noOfLines={1}>URL: {displayImage ? displayImage.substring(0, 25) + '...' : 'None'}</Text>
             <Text>Dimensions: {originalDimensions.width}x{originalDimensions.height}</Text>
           </Box>
+          */}
           
           {/* The image */}
           <img
