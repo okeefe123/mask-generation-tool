@@ -8,10 +8,16 @@ import {
   SliderThumb,
   Text,
   Tooltip,
-  Box
+  Box,
+  Heading
 } from '@chakra-ui/react';
-import { useUIContext } from '../../contexts/AppContexts';
+import { useUIContext, useCanvasContext } from '../../contexts/AppContexts';
 
+/**
+ * Component for canvas drawing and editing tools.
+ * 
+ * @returns {JSX.Element} The rendered DrawingTools component
+ */
 const DrawingTools = () => {
   const {
     drawingMode,
@@ -19,14 +25,47 @@ const DrawingTools = () => {
     brushSize,
     setBrushSize,
     brushShape,
-    setBrushShape
+    setBrushShape,
+    setStatusMessage
   } = useUIContext();
 
+  const {
+    clearCanvas,
+    handleUndo
+  } = useCanvasContext();
+
+  /**
+   * Handles the clear canvas action
+   */
+  const handleClear = () => {
+    clearCanvas();
+    setStatusMessage('Canvas cleared');
+  };
+
+  /**
+   * Handles the undo action
+   */
+  const handleUndoClick = () => {
+    handleUndo();
+    setStatusMessage('Undid last stroke');
+  };
+
   return (
-    <VStack spacing={4} align="stretch">
-      <Box borderRadius="md" p={2} bg="gray.50">
+    <VStack spacing={5} align="stretch" height="100%" width="100%">
+      <Box>
+        <Heading
+          size="md"
+          mb={3}
+          color="gray.700"
+          fontWeight="semibold"
+        >
+          Drawing Tools
+        </Heading>
+      </Box>
+    
+      <Box borderRadius="md" p={3} bg="gray.50">
         <Text fontWeight="medium" fontSize="sm" mb={2}>Drawing Mode</Text>
-        <HStack spacing={2}>
+        <HStack spacing={2} mb={2}>
           <Tooltip label="Draw mask" placement="top">
             <Button
               colorScheme={drawingMode === 'draw' ? 'brand' : 'gray'}
@@ -50,9 +89,31 @@ const DrawingTools = () => {
             </Button>
           </Tooltip>
         </HStack>
+        <HStack spacing={2}>
+          <Tooltip label="Undo last stroke" placement="top">
+            <Button
+              colorScheme="gray"
+              size="sm"
+              onClick={handleUndoClick}
+              flex="1"
+            >
+              Undo
+            </Button>
+          </Tooltip>
+          <Tooltip label="Clear all strokes" placement="top">
+            <Button
+              colorScheme="gray"
+              size="sm"
+              onClick={handleClear}
+              flex="1"
+            >
+              Clear
+            </Button>
+          </Tooltip>
+        </HStack>
       </Box>
       
-      <Box borderRadius="md" p={2} bg="gray.50">
+      <Box borderRadius="md" p={3} bg="gray.50">
         <Text fontWeight="medium" fontSize="sm" mb={2}>Brush Shape</Text>
         <HStack spacing={2}>
           <Tooltip label="Circle shape" placement="top">
@@ -80,7 +141,7 @@ const DrawingTools = () => {
         </HStack>
       </Box>
       
-      <Box borderRadius="md" p={2} bg="gray.50">
+      <Box borderRadius="md" p={3} bg="gray.50">
         <HStack spacing={1} align="center" mb={1}>
           <Text fontWeight="medium" fontSize="sm">
             Brush Size: {brushSize}px

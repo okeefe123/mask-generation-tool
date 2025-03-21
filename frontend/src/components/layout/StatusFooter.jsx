@@ -1,6 +1,11 @@
 import { Box, Flex, Text } from '@chakra-ui/react';
-import { useUIContext } from '../../contexts/UIContext';
+import { useUIContext } from '../../contexts/AppContexts';
 
+/**
+ * Footer component showing application status and copyright information.
+ * 
+ * @returns {JSX.Element} The rendered StatusFooter component
+ */
 const StatusFooter = () => {
   const { isLoading, statusMessage } = useUIContext();
   
@@ -10,7 +15,9 @@ const StatusFooter = () => {
         <Text fontSize="sm" color={isLoading ? "blue.500" : "gray.600"}>
           {statusMessage || 'Ready'}
         </Text>
-        <Text fontSize="xs" color="gray.500">© 2025 Mask Generator Tool</Text>
+        <Text fontSize="xs" color="gray.500" alignSelf="center">
+          © 2025 Mask Generator Tool
+        </Text>
       </Flex>
     </Box>
   );

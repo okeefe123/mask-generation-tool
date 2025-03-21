@@ -2,7 +2,6 @@ import { VStack, Box, Heading, Divider, Badge, useToast } from '@chakra-ui/react
 import { useState, useEffect } from 'react';
 import ImageUploader from '../ImageUploader';
 import DrawingTools from './DrawingTools';
-import ActionButtons from './ActionButtons';
 import { useImageContext } from '../../contexts/AppContexts';
 import { useUIContext } from '../../contexts/AppContexts';
 import { saveMask } from '../../services/api';
@@ -252,64 +251,7 @@ const ToolPanel = ({ canvasElement }) => {
       throw error;
     }
   };
-const handleSave = async () => {
-  try {
-    setIsSaving(true);
-    setIsLoading(true);
-    setError(null);
-    
-    // Extra debug - log original dimensions vs canvas dimensions
-    console.log('SAVING MASK - Debug Information', {
-      originalImageWidth: originalDimensions.width,
-      originalImageHeight: originalDimensions.height,
-      originalAspectRatio: originalDimensions.width / originalDimensions.height,
-      canvasElement: canvasElement ? {
-        width: canvasElement.width,
-        height: canvasElement.height,
-        aspectRatio: canvasElement.width / canvasElement.height
-      } : 'No canvas'
-    });
-    
-    // Check canvas availability
-    if (canvasError) {
-      toast({
-        title: 'Cannot save',
-        description: canvasError,
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-    
-    // Use our optimized save function
-    await saveCanvasAsMask();
-      await saveCanvasAsMask();
-      
-      toast({
-        title: 'Mask saved',
-        description: 'Your mask has been saved successfully.',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error('Save error:', error);
-      setError(error.message || 'Failed to save mask');
-      
-      toast({
-        title: 'Save failed',
-        description: error.message || 'There was an error saving your mask.',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setIsSaving(false);
-      setIsLoading(false);
-    }
-  };
-  
+
   return (
     <VStack
       spacing={6}
@@ -355,28 +297,64 @@ const handleSave = async () => {
             </Heading>
             <DrawingTools />
           </Box>
-          
-          <Divider borderColor="gray.200" />
-          <Box>
-            <Heading
-              size="md"
-              mb={3}
-              color="gray.700"
-              fontWeight="semibold"
-            >
-              Actions
-            </Heading>
-            <ActionButtons
-              onSave={handleSave}
-              isSaving={isSaving}
-              canvasElement={canvasElement}
-              canvasError={canvasError}
-            />
-          </Box>
         </>
       )}
     </VStack>
   );
+};
+
+// Export the save function to be used in StatusFooter
+export const handleSaveMask = async (canvasElement, imageId, originalImage, toast, setIsLoading, setError) => {
+  if (!canvasElement || !imageId) {
+    return;
+  }
+  
+  try {
+    setIsLoading(true);
+    
+    // Get canvas data
+    const maskData = await new Promise((resolve, reject) => {
+      canvasElement.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to convert canvas to blob'));
+        }
+      }, 'image/png');
+    });
+    
+    // Create a form data object to send to the server
+    const formData = new FormData();
+    formData.append('mask', maskData, 'mask.png');
+    formData.append('image_id', imageId);
+    
+    // Call the API to save the mask
+    const response = await saveMask(formData);
+    
+    toast({
+      title: 'Mask saved',
+      description: 'Your mask has been saved successfully.',
+      status: 'success',
+      duration: 3000,
+      isClosable: true,
+    });
+    
+    return response;
+  } catch (error) {
+    console.error('Error saving mask:', error);
+    
+    toast({
+      title: 'Save failed',
+      description: error.message || 'There was an error saving your mask.',
+      status: 'error',
+      duration: 3000,
+      isClosable: true,
+    });
+    
+    throw error;
+  } finally {
+    setIsLoading(false);
+  }
 };
 
 export default ToolPanel;
